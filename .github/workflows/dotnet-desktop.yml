@@ -16,6 +16,10 @@ jobs:
       with:
         fetch-depth: 0
 
+    # Installer le .NET Framework 4.0 Developer Pack nécessaire pour la compilation
+    - name: Install .NET Framework 4.0 Developer Pack
+      run: choco install netfx-4.0-devpack -y
+
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v2
 
