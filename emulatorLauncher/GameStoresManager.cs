@@ -20,12 +20,14 @@ namespace EmulatorLauncher
                 return;
             }
 
+            var retrobatPath = Program.AppConfig.GetFullPath("retrobat");
+
             Parallel.Invoke(
                () => ImportStore("amazon", AmazonLibrary.GetInstalledGames),
                () => ImportStore("eagames", EaGamesLibrary.GetInstalledGames),
                () => ImportStore("epic", EpicLibrary.GetInstalledGames),
                () => ImportStore("gog", GogLibrary.GetInstalledGames),
-               () => ImportStore("steam", SteamLibrary.GetAllGames));
+               () => ImportStore("steam", () => SteamLibrary.GetAllGames(retrobatPath)));
         }
 
         private static void ImportStore(string name, Func<LauncherGameInfo[]> getGames)

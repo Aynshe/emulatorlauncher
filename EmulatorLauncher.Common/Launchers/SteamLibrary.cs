@@ -51,7 +51,7 @@ namespace EmulatorLauncher.Common.Launchers
             return games.ToArray();
         }
 
-        public static LauncherGameInfo[] GetAllGames()
+        public static LauncherGameInfo[] GetAllGames(string retrobatPath)
         {
             var allGames = new Dictionary<string, LauncherGameInfo>();
 
@@ -65,7 +65,7 @@ namespace EmulatorLauncher.Common.Launchers
             }
 
             // Then, add all other owned games.
-            foreach (var game in GetOwnedGames())
+            foreach (var game in GetOwnedGames(retrobatPath))
             {
                 if (!allGames.ContainsKey(game.Id))
                 {
@@ -76,7 +76,7 @@ namespace EmulatorLauncher.Common.Launchers
             return allGames.Values.ToArray();
         }
 
-        private static LauncherGameInfo[] GetOwnedGames()
+        private static LauncherGameInfo[] GetOwnedGames(string retrobatPath)
         {
             var games = new List<LauncherGameInfo>();
 
@@ -84,8 +84,6 @@ namespace EmulatorLauncher.Common.Launchers
             string apiKey = null;
             try
             {
-                // As per user instruction, the key is in retrobat/user/steamapikey
-                var retrobatPath = Program.AppConfig.GetFullPath("retrobat");
                 if (!string.IsNullOrEmpty(retrobatPath))
                 {
                     string apiKeyPath = Path.Combine(retrobatPath, "user", "apikey", "steam.apikey");
@@ -93,7 +91,7 @@ namespace EmulatorLauncher.Common.Launchers
                     {
                         apiKey = File.ReadAllText(apiKeyPath).Trim();
                         if (string.IsNullOrEmpty(apiKey))
-                            SimpleLogger.Instance.Warning("[Steam] steamapikey file is empty.");
+                            SimpleLogger.Instance.Warning("[Steam] steam.apikey file is empty.");
                         else
                             SimpleLogger.Instance.Info("[Steam] Found Steam API Key.");
                     }
@@ -101,7 +99,7 @@ namespace EmulatorLauncher.Common.Launchers
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error("[Steam] Error reading steamapikey file: " + ex.Message, ex);
+                SimpleLogger.Instance.Error("[Steam] Error reading steam.apikey file: " + ex.Message, ex);
             }
 
             if (string.IsNullOrEmpty(apiKey))
