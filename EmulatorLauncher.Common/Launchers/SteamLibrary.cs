@@ -133,16 +133,25 @@ namespace EmulatorLauncher.Common.Launchers
                 return games.ToArray();
             }
 
-            string sharedConfigPath = Path.Combine(steamPath, "userdata", userId, "7", "remote", "sharedconfig.vdf");
-            if (!File.Exists(sharedConfigPath))
+            string userdataPath = Path.Combine(steamPath, "userdata", userId);
+            if (!Directory.Exists(userdataPath))
             {
-                SimpleLogger.Instance.Error("[Steam] GetOwnedGames: sharedconfig.vdf not found at " + sharedConfigPath);
-                sharedConfigPath = Path.Combine(steamPath, "userdata", userId, "config", "sharedconfig.vdf");
-                if (!File.Exists(sharedConfigPath))
-                {
-                    SimpleLogger.Instance.Error("[Steam] GetOwnedGames: sharedconfig.vdf also not found at " + sharedConfigPath);
-                    return games.ToArray();
-                }
+                SimpleLogger.Instance.Error("[Steam] GetOwnedGames: User data directory not found at " + userdataPath);
+                return games.ToArray();
+            }
+
+            string[] sharedConfigFiles = Directory.GetFiles(userdataPath, "sharedconfig.vdf", SearchOption.AllDirectories);
+
+            if (sharedConfigFiles.Length == 0)
+            {
+                SimpleLogger.Instance.Error("[Steam] GetOwnedGames: No sharedconfig.vdf found for user " + userId);
+                return games.ToArray();
+            }
+
+            string sharedConfigPath = sharedConfigFiles[0];
+            if (sharedConfigFiles.Length > 1)
+            {
+                SimpleLogger.Instance.Warning("[Steam] GetOwnedGames: Found multiple sharedconfig.vdf files. Using the first one: " + sharedConfigPath);
             }
             SimpleLogger.Instance.Info("[Steam] GetOwnedGames: Found sharedconfig.vdf at " + sharedConfigPath);
 
