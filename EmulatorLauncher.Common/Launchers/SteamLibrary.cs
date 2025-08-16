@@ -88,7 +88,7 @@ namespace EmulatorLauncher.Common.Launchers
                 var retrobatPath = Program.AppConfig.GetFullPath("retrobat");
                 if (!string.IsNullOrEmpty(retrobatPath))
                 {
-                    string apiKeyPath = Path.Combine(retrobatPath, "user", "steamapikey");
+                    string apiKeyPath = Path.Combine(retrobatPath, "user", "apikey", "steam.apikey");
                     if (File.Exists(apiKeyPath))
                     {
                         apiKey = File.ReadAllText(apiKeyPath).Trim();
