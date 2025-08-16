@@ -1,4 +1,4 @@
-name: Build EmulatorLauncher
+name: Build Batocera-Ports
 
 on:
   push:
@@ -28,15 +28,22 @@ jobs:
     - name: Build solution (Release)
       run: msbuild batocera-ports.sln /p:Configuration=Release
 
-    - name: Archive build output to ZIP
+    - name: Archive all build outputs
       run: |
-        $outputDir = "EmulatorLauncher\bin\Release"
-        $zipPath = "EmulatorLauncher-Release.zip"
-        Compress-Archive -Path "$outputDir\*" -DestinationPath $zipPath -Force
+        $zipPath = "batocera-ports-Release.zip"
+        $releaseDirs = Get-ChildItem -Path . -Recurse -Include Release -Directory | Where-Object { $_.FullName -match "\\bin\\Release$" }
+        $tempDir = "all-builds"
+        New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
+        foreach ($dir in $releaseDirs) {
+          $projectName = Split-Path (Split-Path $dir.FullName -Parent) -Leaf
+          $dest = Join-Path $tempDir $projectName
+          Copy-Item -Path "$($dir.FullName)\*" -Destination $dest -Recurse -Force
+        }
+        Compress-Archive -Path "$tempDir\*" -DestinationPath $zipPath -Force
         echo "ZIP_PATH=$zipPath" >> $env:GITHUB_ENV
 
     - name: Upload artifact (ZIP)
       uses: actions/upload-artifact@v4
       with:
-        name: EmulatorLauncher-Release
+        name: batocera-ports-Release
         path: ${{ env.ZIP_PATH }}
