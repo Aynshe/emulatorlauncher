@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: windows-2022
+    runs-on: windows-latest
 
     steps:
     - name: Checkout repository
@@ -16,17 +16,19 @@ jobs:
       with:
         fetch-depth: 0
 
-    # Installer le .NET Framework 4.0 Developer Pack
-    - name: Install .NET Framework 4.0
-      run: |
-        Invoke-WebRequest -Uri "https://download.microsoft.com/download/9/5/a/95a9616b-7a37-4af6-bc36-d6ea96c8daae/dotNetFx40_Full_x86_x64.exe" -OutFile "$env:TEMP\dotNetFx40.exe"
-        Start-Process -FilePath "$env:TEMP\dotNetFx40.exe" -ArgumentList "/q /norestart" -Wait
-
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v2
 
     - name: Setup NuGet
       uses: NuGet/setup-nuget@v2
+
+    - name: Install .NET Framework 4.0 Developer Pack
+      shell: pwsh
+      run: |
+        $devPackUrl = "https://download.microsoft.com/download/1/5/D/15D3AD91-F8A0-46B0-8C53-57B0D31B6AB6/dotnetfx40_Full_x86_x64_DevPack.exe"
+        $devPackPath = "$env:TEMP\dotNetFx40DevPack.exe"
+        Invoke-WebRequest -Uri $devPackUrl -OutFile $devPackPath
+        Start-Process -FilePath $devPackPath -ArgumentList "/q /norestart" -Wait
 
     - name: Restore NuGet packages
       run: nuget restore batocera-ports.sln
