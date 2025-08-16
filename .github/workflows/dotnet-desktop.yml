@@ -1,45 +1,51 @@
-name: Build PR and Zip
+name: Compile PR Build
 
-# Déclenchement sur pull request vers main ou master
+# Déclenchement du workflow
 on:
   pull_request:
     branches:
-      - master
       - main
+      - master
+  push:
+    branches:
+      - main
+      - master
 
 jobs:
-  build-and-zip:
-    runs-on: windows-latest
+  build:
+    runs-on: ubuntu-latest
 
     steps:
-      # 1. Récupérer le code
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    # 1. Checkout du code
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-      # 2. Installer MSBuild
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
+    # 2. Setup .NET (modifier selon ton projet)
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '7.0.x'
 
-      # 3. Installer NuGet
-      - name: Setup NuGet
-        uses: NuGet/setup-nuget@v2
+    # 3. Restore dependencies
+    - name: Restore dependencies
+      run: dotnet restore
 
-      # 4. Restaurer les packages NuGet
-      - name: Restore NuGet packages
-        run: nuget restore batocera-ports.sln
+    # 4. Build le projet en Release
+    - name: Build project
+      run: dotnet build --configuration Release --no-restore
 
-      # 5. Compiler le projet en Release
-      - name: Build solution (Release)
-        run: msbuild batocera-ports.sln /p:Configuration=Release /m
+    # 5. Publish la build dans un dossier spécifique
+    - name: Publish project
+      run: dotnet publish --configuration Release --output ./publish
 
-      # 6. Créer un ZIP du dossier Release
-      - name: Create ZIP of Release folder
-        run: |
-          powershell Compress-Archive -Path 'batocera-ports\bin\Release\*' -DestinationPath 'batocera-ports-PR.zip'
+    # 6. Zip le contenu du build
+    - name: Create ZIP artifact
+      run: |
+        zip -r build.zip ./publish
 
-      # 7. Upload du ZIP comme artifact
-      - name: Upload ZIP as artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: batocera-ports-PR
-          path: batocera-ports-PR.zip
+    # 7. Upload l'artefact
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-zip
+        path: build.zip
