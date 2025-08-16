@@ -1,50 +1,45 @@
-name: Build & Release Batocera-Ports
+name: Build PR and Zip
 
+# Déclenchement sur pull request vers main ou master
 on:
-  push:
-    tags:
-      - "v*"   # ex: v1.0.0, v2.3.4
+  pull_request:
+    branches:
+      - master
+      - main
 
 jobs:
-  build:
+  build-and-zip:
     runs-on: windows-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      # 1. Récupérer le code
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Setup MSBuild
-      uses: microsoft/setup-msbuild@v2
+      # 2. Installer MSBuild
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
 
-    - name: Setup NuGet
-      uses: NuGet/setup-nuget@v2
+      # 3. Installer NuGet
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
 
-    - name: Restore NuGet packages
-      run: nuget restore batocera-ports.sln
+      # 4. Restaurer les packages NuGet
+      - name: Restore NuGet packages
+        run: nuget restore batocera-ports.sln
 
-    - name: Build solution (Release)
-      run: msbuild batocera-ports.sln /p:Configuration=Release
+      # 5. Compiler le projet en Release
+      - name: Build solution (Release)
+        run: msbuild batocera-ports.sln /p:Configuration=Release /m
 
-    - name: Archive all build outputs
-      shell: pwsh
-      run: |
-        $zipPath = "batocera-ports-${{ github.ref_name }}.zip"
-        $releaseDirs = Get-ChildItem -Path . -Recurse -Include Release -Directory | Where-Object { $_.FullName -match "\\bin\\Release$" }
-        $tempDir = "all-builds"
-        New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
-        foreach ($dir in $releaseDirs) {
-          $projectName = Split-Path (Split-Path $dir.FullName -Parent) -Leaf
-          $dest = Join-Path $tempDir $projectName
-          Copy-Item -Path "$($dir.FullName)\*" -Destination $dest -Recurse -Force
-        }
-        Compress-Archive -Path "$tempDir\*" -DestinationPath $zipPath -Force
-        echo "ZIP_PATH=$zipPath" >> $env:GITHUB_ENV
+      # 6. Créer un ZIP du dossier Release
+      - name: Create ZIP of Release folder
+        run: |
+          powershell Compress-Archive -Path 'batocera-ports\bin\Release\*' -DestinationPath 'batocera-ports-PR.zip'
 
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v2
-      with:
-        files: ${{ env.ZIP_PATH }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # 7. Upload du ZIP comme artifact
+      - name: Upload ZIP as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: batocera-ports-PR
+          path: batocera-ports-PR.zip
