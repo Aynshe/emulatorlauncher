@@ -1,10 +1,9 @@
-name: Build Batocera-Ports
+name: Build & Release Batocera-Ports
 
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+    tags:
+      - "v*"   # ex: v1.0.0, v2.3.4
 
 jobs:
   build:
@@ -31,7 +30,7 @@ jobs:
     - name: Archive all build outputs
       shell: pwsh
       run: |
-        $zipPath = "batocera-ports-Release.zip"
+        $zipPath = "batocera-ports-${{ github.ref_name }}.zip"
         $releaseDirs = Get-ChildItem -Path . -Recurse -Include Release -Directory | Where-Object { $_.FullName -match "\\bin\\Release$" }
         $tempDir = "all-builds"
         New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
@@ -43,8 +42,9 @@ jobs:
         Compress-Archive -Path "$tempDir\*" -DestinationPath $zipPath -Force
         echo "ZIP_PATH=$zipPath" >> $env:GITHUB_ENV
 
-    - name: Upload artifact (ZIP)
-      uses: actions/upload-artifact@v4
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
       with:
-        name: batocera-ports-Release
-        path: ${{ env.ZIP_PATH }}
+        files: ${{ env.ZIP_PATH }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
