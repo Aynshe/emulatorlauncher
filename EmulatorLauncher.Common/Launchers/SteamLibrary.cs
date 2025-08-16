@@ -108,11 +108,26 @@ namespace EmulatorLauncher.Common.Launchers
                 return games.ToArray();
             }
 
-            var mostRecentUser = loginUsersKv["users"].Children.FirstOrDefault(u => u["MostRecent"]?.Value == "1");
+            var usersNode = loginUsersKv["users"];
+            if (usersNode == null || usersNode.Children == null)
+            {
+                SimpleLogger.Instance.Error("[Steam] GetOwnedGames: 'users' node not found or has no children in loginusers.vdf.");
+                return games.ToArray();
+            }
+
+            SimpleLogger.Instance.Info("[Steam] GetOwnedGames: Found " + usersNode.Children.Count + " user(s) in loginusers.vdf.");
+            foreach (var userNode in usersNode.Children)
+            {
+                var mostRecentFlag = userNode["MostRecent"]?.Value;
+                var timestamp = userNode["Timestamp"]?.Value;
+                SimpleLogger.Instance.Info("[Steam] GetOwnedGames: User " + userNode.Name + ", MostRecent: " + (mostRecentFlag ?? "null") + ", Timestamp: " + (timestamp ?? "null"));
+            }
+
+            var mostRecentUser = usersNode.Children.FirstOrDefault(u => u["MostRecent"]?.Value == "1");
             if (mostRecentUser == null)
             {
                 SimpleLogger.Instance.Warning("[Steam] GetOwnedGames: Could not find most recent user with MostRecent=1 flag. Falling back to timestamp.");
-                mostRecentUser = loginUsersKv["users"].Children
+                mostRecentUser = usersNode.Children
                     .OrderByDescending(u =>
                     {
                         long ts = 0;
@@ -131,7 +146,7 @@ namespace EmulatorLauncher.Common.Launchers
             string userId = mostRecentUser.Name;
             if (string.IsNullOrEmpty(userId))
             {
-                SimpleLogger.Instance.Error("[Steam] GetOwnedGames: User ID is null or empty.");
+                SimpleLogger.Instance.Error("[Steam] GetOwnedGames: User ID is null or empty for the selected user.");
                 return games.ToArray();
             }
             SimpleLogger.Instance.Info("[Steam] GetOwnedGames: Found user ID: " + userId);
