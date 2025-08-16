@@ -23,10 +23,10 @@ jobs:
       uses: NuGet/setup-nuget@v2
 
     - name: Restore NuGet packages
-      run: nuget restore EmulatorLauncher.sln
+      run: nuget restore batocera-ports.sln
 
     - name: Build solution (Release)
-      run: msbuild EmulatorLauncher.sln /p:Configuration=Release
+      run: msbuild batocera-ports.sln /p:Configuration=Release
 
     - name: Archive build output to ZIP
       run: |
