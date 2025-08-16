@@ -1,51 +1,50 @@
-name: Compile PR Build
+name: Build Batocera-Ports
 
-# Déclenchement du workflow
 on:
-  pull_request:
-    branches:
-      - main
-      - master
   push:
-    branches:
-      - main
-      - master
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
-    # 1. Checkout du code
     - name: Checkout repository
-      uses: actions/checkout@v3
-
-    # 2. Setup .NET (modifier selon ton projet)
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v3
+      uses: actions/checkout@v4
       with:
-        dotnet-version: '7.0.x'
+        fetch-depth: 0
 
-    # 3. Restore dependencies
-    - name: Restore dependencies
-      run: dotnet restore
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
 
-    # 4. Build le projet en Release
-    - name: Build project
-      run: dotnet build --configuration Release --no-restore
+    - name: Setup NuGet
+      uses: NuGet/setup-nuget@v2
 
-    # 5. Publish la build dans un dossier spécifique
-    - name: Publish project
-      run: dotnet publish --configuration Release --output ./publish
+    - name: Restore NuGet packages
+      run: nuget restore batocera-ports.sln
 
-    # 6. Zip le contenu du build
-    - name: Create ZIP artifact
+    - name: Build solution (Release)
+      run: msbuild batocera-ports.sln /p:Configuration=Release
+
+    - name: Archive all build outputs
+      shell: pwsh
       run: |
-        zip -r build.zip ./publish
+        $zipPath = "batocera-ports-Release.zip"
+        $releaseDirs = Get-ChildItem -Path . -Recurse -Include Release -Directory | Where-Object { $_.FullName -match "\\bin\\Release$" }
+        $tempDir = "all-builds"
+        New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
+        foreach ($dir in $releaseDirs) {
+          $projectName = Split-Path (Split-Path $dir.FullName -Parent) -Leaf
+          $dest = Join-Path $tempDir $projectName
+          Copy-Item -Path "$($dir.FullName)\*" -Destination $dest -Recurse -Force
+        }
+        Compress-Archive -Path "$tempDir\*" -DestinationPath $zipPath -Force
+        echo "ZIP_PATH=$zipPath" >> $env:GITHUB_ENV
 
-    # 7. Upload l'artefact
-    - name: Upload artifact
-      uses: actions/upload-artifact@v3
+    - name: Upload artifact (ZIP)
+      uses: actions/upload-artifact@v4
       with:
-        name: build-zip
-        path: build.zip
+        name: batocera-ports-Release
+        path: ${{ env.ZIP_PATH }}
