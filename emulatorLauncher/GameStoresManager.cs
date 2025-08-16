@@ -25,10 +25,10 @@ namespace EmulatorLauncher
                () => ImportStore("eagames", EaGamesLibrary.GetInstalledGames),
                () => ImportStore("epic", EpicLibrary.GetInstalledGames),
                () => ImportStore("gog", GogLibrary.GetInstalledGames),
-               () => ImportStore("steam", SteamLibrary.GetInstalledGames));
+               () => ImportStore("steam", SteamLibrary.GetAllGames));
         }
 
-        private static void ImportStore(string name, Func<LauncherGameInfo[]> getInstalledGames)
+        private static void ImportStore(string name, Func<LauncherGameInfo[]> getGames)
         {
             try
             {
@@ -37,25 +37,39 @@ namespace EmulatorLauncher
                 var dir = Path.Combine(roms, name);
                 Directory.CreateDirectory(dir);
 
-                var files = new HashSet<string>(new[] { "*.url", "*.lnk" }.SelectMany(ext => Directory.GetFiles(dir, ext)));
-           
+                var notInstalledDir = Path.Combine(dir, "Not Installed");
+                if (name == "steam")
+                    Directory.CreateDirectory(notInstalledDir);
+
+                var files = new HashSet<string>(new[] { "*.url", "*.lnk" }.SelectMany(ext => Directory.GetFiles(dir, ext, SearchOption.TopDirectoryOnly)));
+                var notInstalledFiles = name == "steam" ? new HashSet<string>(new[] { "*.url", "*.lnk" }.SelectMany(ext => Directory.GetFiles(notInstalledDir, ext, SearchOption.TopDirectoryOnly))) : new HashSet<string>();
+
                 dynamic shell = null;
 
-                foreach (var game in getInstalledGames())
+                foreach (var game in getGames())
                 {
                     try
                     {
+                        var targetDir = dir;
+                        var targetFiles = files;
+
+                        if (name == "steam" && !game.IsInstalled)
+                        {
+                            targetDir = notInstalledDir;
+                            targetFiles = notInstalledFiles;
+                        }
+
                         Uri uri = new Uri(game.LauncherUrl);
 
                         string gameName = RemoveInvalidFileNameChars(game.Name);
 
-                        string path = Path.Combine(dir, gameName + ".url");
+                        string path = Path.Combine(targetDir, gameName + ".url");
                         if (uri.Scheme == "file")
-                            path = Path.Combine(dir, gameName + ".lnk");
+                            path = Path.Combine(targetDir, gameName + ".lnk");
 
-                        if (files.Contains(path))
+                        if (targetFiles.Contains(path))
                         {
-                            files.Remove(path);
+                            targetFiles.Remove(path);
                             continue;
                         }
 
@@ -66,7 +80,7 @@ namespace EmulatorLauncher
                                 if (shell == null)
                                     shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));
 
-                                dynamic shortcut = shell.CreateShortcut(Path.Combine(dir, gameName + ".lnk"));
+                                dynamic shortcut = shell.CreateShortcut(path);
                                 shortcut.TargetPath = game.LauncherUrl;
                                 shortcut.Arguments = game.Parameters;
                                 shortcut.WorkingDirectory = game.InstallDirectory;
@@ -102,6 +116,12 @@ namespace EmulatorLauncher
                 {
                     foreach (var file in files)
                         FileTools.TryDeleteFile(file);
+
+                    if (name == "steam")
+                    {
+                        foreach (var file in notInstalledFiles)
+                            FileTools.TryDeleteFile(file);
+                    }
                 }
             }
 

@@ -49,6 +49,107 @@ namespace EmulatorLauncher.Common.Launchers
 
             return games.ToArray();
         }
+
+        public static LauncherGameInfo[] GetAllGames()
+        {
+            var allGames = new Dictionary<string, LauncherGameInfo>();
+
+            // First, add installed games. They have more accurate information.
+            foreach (var game in GetInstalledGames())
+            {
+                if (!allGames.ContainsKey(game.Id))
+                {
+                    allGames.Add(game.Id, game);
+                }
+            }
+
+            // Then, add all other owned games.
+            foreach (var game in GetOwnedGames())
+            {
+                if (!allGames.ContainsKey(game.Id))
+                {
+                    allGames.Add(game.Id, game);
+                }
+            }
+
+            return allGames.Values.ToArray();
+        }
+
+        private static LauncherGameInfo[] GetOwnedGames()
+        {
+            var games = new List<LauncherGameInfo>();
+
+            string steamPath = GetInstallPath();
+            if (string.IsNullOrEmpty(steamPath))
+                return games.ToArray();
+
+            string loginUsersPath = Path.Combine(steamPath, "config", "loginusers.vdf");
+            if (!File.Exists(loginUsersPath))
+                return games.ToArray();
+
+            var loginUsersKv = new KeyValue();
+            try
+            {
+                loginUsersKv.ReadFileAsText(loginUsersPath);
+            }
+            catch { return games.ToArray(); }
+
+            var mostRecentUser = loginUsersKv["users"].Children
+                .OrderByDescending(u =>
+                {
+                    long ts = 0;
+                    long.TryParse(u["Timestamp"]?.Value, out ts);
+                    return ts;
+                })
+                .FirstOrDefault();
+
+            if (mostRecentUser == null)
+                return games.ToArray();
+
+            string userId = mostRecentUser.Name;
+            if (string.IsNullOrEmpty(userId))
+                return games.ToArray();
+
+            string sharedConfigPath = Path.Combine(steamPath, "userdata", userId, "7", "remote", "sharedconfig.vdf");
+            if (!File.Exists(sharedConfigPath))
+                return games.ToArray();
+
+            var sharedConfigKv = new KeyValue();
+            try
+            {
+                sharedConfigKv.ReadFileAsText(sharedConfigPath);
+            }
+            catch { return games.ToArray(); }
+
+            var appsNode = sharedConfigKv["UserRoamingConfigStore"]?["Software"]?["Valve"]?["Steam"]?["apps"];
+            if (appsNode == null || appsNode.Children == null)
+                return games.ToArray();
+
+            foreach (var gameNode in appsNode.Children)
+            {
+                string gameId = gameNode.Name;
+                if (string.IsNullOrEmpty(gameId) || gameId == "228980")
+                    continue;
+
+                var nameNode = gameNode["name"];
+                string name = nameNode?.Value;
+
+                if (string.IsNullOrEmpty(name))
+                    continue;
+
+                var game = new LauncherGameInfo()
+                {
+                    Id = gameId,
+                    Name = name,
+                    LauncherUrl = string.Format(GameLaunchUrl, gameId),
+                    PreviewImageUrl = string.Format(HeaderImageUrl, gameId),
+                    Launcher = GameLauncherType.Steam
+                };
+                games.Add(game);
+            }
+
+            return games.ToArray();
+        }
         
         public static string GetSteamGameExecutableName(Uri uri, string steamdb, out string shorturl)
         {
@@ -306,7 +407,8 @@ namespace EmulatorLauncher.Common.Launchers
                 LauncherUrl = string.Format(GameLaunchUrl, gameId) + "\"" + " -silent",
                 PreviewImageUrl = string.Format(HeaderImageUrl, gameId),
                 ExecutableName = FindExecutableName(gameId.ToInteger()),
-                Launcher = GameLauncherType.Steam
+                Launcher = GameLauncherType.Steam,
+                IsInstalled = true
             };
 
             if (!string.IsNullOrEmpty(game.ExecutableName) && !string.IsNullOrEmpty(game.InstallDirectory))
