@@ -7,6 +7,7 @@ using Microsoft.Win32;
 using Steam_Library_Manager.Framework;
 using EmulatorLauncher.Common.Launchers.Steam;
 using Newtonsoft.Json;
+using System.Text.RegularExpressions;
 
 namespace EmulatorLauncher.Common.Launchers
 {
@@ -87,7 +88,6 @@ namespace EmulatorLauncher.Common.Launchers
                 SimpleLogger.Instance.Error("[Steam] GetOwnedGames: Steam installation path not found.");
                 return games.ToArray();
             }
-            SimpleLogger.Instance.Info("[Steam] GetOwnedGames: Steam path found: " + steamPath);
 
             string loginUsersPath = Path.Combine(steamPath, "config", "loginusers.vdf");
             if (!File.Exists(loginUsersPath))
@@ -95,67 +95,48 @@ namespace EmulatorLauncher.Common.Launchers
                 SimpleLogger.Instance.Error("[Steam] GetOwnedGames: loginusers.vdf not found at " + loginUsersPath);
                 return games.ToArray();
             }
-            SimpleLogger.Instance.Info("[Steam] GetOwnedGames: Found loginusers.vdf at " + loginUsersPath);
 
-            var loginUsersKv = new KeyValue();
+            string userId = null;
+
             try
             {
-                loginUsersKv.ReadFileAsText(loginUsersPath);
+                string vdfText = File.ReadAllText(loginUsersPath);
+                var regex = new Regex("\"(\\d{17})\"\\s*\\{[^}]*\"MostRecent\"\\s*\"1\"", RegexOptions.IgnoreCase);
+                var match = regex.Match(vdfText);
+
+                if (match.Success)
+                {
+                    userId = match.Groups[1].Value;
+                    SimpleLogger.Instance.Info("[Steam] GetOwnedGames: Found user ID with Regex: " + userId);
+                }
+                else
+                {
+                    SimpleLogger.Instance.Error("[Steam] GetOwnedGames: Could not find user with MostRecent=1 using Regex. Falling back to first user.");
+                    regex = new Regex("\"(\\d{17})\"");
+                    match = regex.Match(vdfText);
+                    if (match.Success)
+                    {
+                        userId = match.Groups[1].Value;
+                        SimpleLogger.Instance.Warning("[Steam] GetOwnedGames: Found first user with Regex as fallback: " + userId);
+                    }
+                }
             }
             catch (Exception ex)
             {
-                SimpleLogger.Instance.Error("[Steam] GetOwnedGames: Error parsing loginusers.vdf: " + ex.Message);
+                SimpleLogger.Instance.Error("[Steam] GetOwnedGames: Error parsing loginusers.vdf with Regex: " + ex.Message);
                 return games.ToArray();
             }
 
-            var usersNode = loginUsersKv["users"];
-            if (usersNode == null || usersNode.Children == null)
-            {
-                SimpleLogger.Instance.Error("[Steam] GetOwnedGames: 'users' node not found or has no children in loginusers.vdf.");
-                return games.ToArray();
-            }
-
-            SimpleLogger.Instance.Info("[Steam] GetOwnedGames: Found " + usersNode.Children.Count + " user(s) in loginusers.vdf.");
-            foreach (var userNode in usersNode.Children)
-            {
-                var mostRecentFlag = userNode["MostRecent"]?.Value;
-                var timestamp = userNode["Timestamp"]?.Value;
-                SimpleLogger.Instance.Info("[Steam] GetOwnedGames: User " + userNode.Name + ", MostRecent: " + (mostRecentFlag ?? "null") + ", Timestamp: " + (timestamp ?? "null"));
-            }
-
-            var mostRecentUser = usersNode.Children.FirstOrDefault(u => u["MostRecent"]?.Value == "1");
-            if (mostRecentUser == null)
-            {
-                SimpleLogger.Instance.Warning("[Steam] GetOwnedGames: Could not find most recent user with MostRecent=1 flag. Falling back to timestamp.");
-                mostRecentUser = usersNode.Children
-                    .OrderByDescending(u =>
-                    {
-                        long ts = 0;
-                        long.TryParse(u["Timestamp"]?.Value, out ts);
-                        return ts;
-                    })
-                    .FirstOrDefault();
-            }
-
-            if (mostRecentUser == null)
-            {
-                SimpleLogger.Instance.Error("[Steam] GetOwnedGames: Could not find most recent user in loginusers.vdf.");
-                return games.ToArray();
-            }
-
-            string userId = mostRecentUser.Name;
             if (string.IsNullOrEmpty(userId))
             {
-                SimpleLogger.Instance.Error("[Steam] GetOwnedGames: User ID is null or empty for the selected user.");
+                SimpleLogger.Instance.Error("[Steam] GetOwnedGames: Could not find any user ID.");
                 return games.ToArray();
             }
-            SimpleLogger.Instance.Info("[Steam] GetOwnedGames: Found user ID: " + userId);
 
             string sharedConfigPath = Path.Combine(steamPath, "userdata", userId, "7", "remote", "sharedconfig.vdf");
             if (!File.Exists(sharedConfigPath))
             {
                 SimpleLogger.Instance.Error("[Steam] GetOwnedGames: sharedconfig.vdf not found at " + sharedConfigPath);
-                // Let's try another common path for sharedconfig.vdf, just in case
                 sharedConfigPath = Path.Combine(steamPath, "userdata", userId, "config", "sharedconfig.vdf");
                 if (!File.Exists(sharedConfigPath))
                 {
@@ -176,7 +157,6 @@ namespace EmulatorLauncher.Common.Launchers
                 return games.ToArray();
             }
 
-            // Path to apps can be different. Let's try a few.
             var appsNode = sharedConfigKv["UserRoamingConfigStore"]?["Software"]?["Valve"]?["Steam"]?["apps"];
             if (appsNode == null)
                 appsNode = sharedConfigKv["apps"];
@@ -195,7 +175,6 @@ namespace EmulatorLauncher.Common.Launchers
                 if (string.IsNullOrEmpty(gameId) || gameId == "228980")
                     continue;
 
-                // In sharedconfig, the interesting properties are under a "tags" child node for many games
                 var nameNode = gameNode["name"];
                 if (nameNode == null)
                     nameNode = gameNode["common"]?["name"];
@@ -203,12 +182,7 @@ namespace EmulatorLauncher.Common.Launchers
                 string name = nameNode?.Value;
 
                 if (string.IsNullOrEmpty(name))
-                {
-                    // SimpleLogger.Instance.Warning("[Steam] GetOwnedGames: Game with ID " + gameId + " has no name. Skipping.");
                     continue;
-                }
-
-                SimpleLogger.Instance.Info("[Steam] GetOwnedGames: Found game: " + name + " (ID: " + gameId + ")");
 
                 var game = new LauncherGameInfo()
                 {
