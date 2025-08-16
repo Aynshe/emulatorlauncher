@@ -1,0 +1,42 @@
+name: Build EmulatorLauncher
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Setup NuGet
+      uses: NuGet/setup-nuget@v2
+
+    - name: Restore NuGet packages
+      run: nuget restore EmulatorLauncher.sln
+
+    - name: Build solution (Release)
+      run: msbuild EmulatorLauncher.sln /p:Configuration=Release
+
+    - name: Archive build output to ZIP
+      run: |
+        $outputDir = "EmulatorLauncher\bin\Release"
+        $zipPath = "EmulatorLauncher-Release.zip"
+        Compress-Archive -Path "$outputDir\*" -DestinationPath $zipPath -Force
+        echo "ZIP_PATH=$zipPath" >> $env:GITHUB_ENV
+
+    - name: Upload artifact (ZIP)
+      uses: actions/upload-artifact@v4
+      with:
+        name: EmulatorLauncher-Release
+        path: ${{ env.ZIP_PATH }}
