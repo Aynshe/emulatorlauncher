@@ -29,6 +29,7 @@ jobs:
       run: msbuild batocera-ports.sln /p:Configuration=Release
 
     - name: Archive all build outputs
+      shell: pwsh
       run: |
         $zipPath = "batocera-ports-Release.zip"
         $releaseDirs = Get-ChildItem -Path . -Recurse -Include Release -Directory | Where-Object { $_.FullName -match "\\bin\\Release$" }
