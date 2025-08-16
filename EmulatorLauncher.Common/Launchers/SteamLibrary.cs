@@ -96,7 +96,7 @@ namespace EmulatorLauncher.Common.Launchers
                 return games.ToArray();
             }
 
-            string userId = null;
+            string steamId64 = null;
 
             try
             {
@@ -106,8 +106,8 @@ namespace EmulatorLauncher.Common.Launchers
 
                 if (match.Success)
                 {
-                    userId = match.Groups[1].Value;
-                    SimpleLogger.Instance.Info("[Steam] GetOwnedGames: Found user ID with Regex: " + userId);
+                    steamId64 = match.Groups[1].Value;
+                    SimpleLogger.Instance.Info("[Steam] GetOwnedGames: Found user SteamID64 with Regex: " + steamId64);
                 }
                 else
                 {
@@ -116,8 +116,8 @@ namespace EmulatorLauncher.Common.Launchers
                     match = regex.Match(vdfText);
                     if (match.Success)
                     {
-                        userId = match.Groups[1].Value;
-                        SimpleLogger.Instance.Warning("[Steam] GetOwnedGames: Found first user with Regex as fallback: " + userId);
+                        steamId64 = match.Groups[1].Value;
+                        SimpleLogger.Instance.Warning("[Steam] GetOwnedGames: Found first user with Regex as fallback: " + steamId64);
                     }
                 }
             }
@@ -127,13 +127,23 @@ namespace EmulatorLauncher.Common.Launchers
                 return games.ToArray();
             }
 
-            if (string.IsNullOrEmpty(userId))
+            if (string.IsNullOrEmpty(steamId64))
             {
-                SimpleLogger.Instance.Error("[Steam] GetOwnedGames: Could not find any user ID.");
+                SimpleLogger.Instance.Error("[Steam] GetOwnedGames: Could not find any user SteamID64.");
                 return games.ToArray();
             }
 
-            string userdataPath = Path.Combine(steamPath, "userdata", userId);
+            long steamId64_long = 0;
+            if (!long.TryParse(steamId64, out steamId64_long))
+            {
+                SimpleLogger.Instance.Error("[Steam] GetOwnedGames: Could not parse SteamID64 to long: " + steamId64);
+                return games.ToArray();
+            }
+
+            long steamId32 = steamId64_long - 76561197960265728L;
+            SimpleLogger.Instance.Info("[Steam] GetOwnedGames: Converted SteamID64 " + steamId64 + " to SteamID32 " + steamId32);
+
+            string userdataPath = Path.Combine(steamPath, "userdata", steamId32.ToString());
             if (!Directory.Exists(userdataPath))
             {
                 SimpleLogger.Instance.Error("[Steam] GetOwnedGames: User data directory not found at " + userdataPath);
@@ -144,7 +154,7 @@ namespace EmulatorLauncher.Common.Launchers
 
             if (sharedConfigFiles.Length == 0)
             {
-                SimpleLogger.Instance.Error("[Steam] GetOwnedGames: No sharedconfig.vdf found for user " + userId);
+                SimpleLogger.Instance.Error("[Steam] GetOwnedGames: No sharedconfig.vdf found for user " + steamId32);
                 return games.ToArray();
             }
 
