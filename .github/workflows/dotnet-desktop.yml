@@ -8,17 +8,14 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    # Utiliser Windows 2019 car il inclut le .NET Framework 4.0 Targeting Pack
+    runs-on: windows-2019
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-
-    # Installer le .NET Framework 4.0 Developer Pack nécessaire pour la compilation
-    - name: Install .NET Framework 4.0 Developer Pack
-      run: choco install netfx-4.0-devpack -y
 
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v2
