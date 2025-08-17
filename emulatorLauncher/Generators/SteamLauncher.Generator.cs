@@ -5,7 +5,6 @@ using System.Diagnostics;
 using EmulatorLauncher.Common.Launchers;
 using EmulatorLauncher.Common;
 using Microsoft.Win32;
-using EmulatorLauncher.Common.EmulationStation;
 
 namespace EmulatorLauncher
 {
@@ -15,6 +14,7 @@ namespace EmulatorLauncher
         class SteamGameLauncher : GameLauncher
         {
             private string _steamID;
+
             public SteamGameLauncher(Uri uri)
             {
                 // Call method to get Steam executable
@@ -112,7 +112,7 @@ namespace EmulatorLauncher
                     // Start game install
                     Process.Start(path);
 
-                    if (EsFeatures.Instance.IsSupported("steam.waitforinstall") && Program.SystemConfig.isOptSet("steam.waitforinstall") && Program.SystemConfig.getOptBoolean("steam.waitforinstall"))
+                    if (Program.SystemConfig.isOptSet("steam.waitforinstall") && Program.SystemConfig.getOptBoolean("steam.waitforinstall"))
                     {
                         if (!MonitorGameInstallation())
                         {
