@@ -30,7 +30,10 @@ namespace EmulatorLauncher
             {
                 if (_game != null && !_game.IsInstalled)
                 {
-                    if (Program.SystemConfig.getOptBoolean("steam.waitforinstall"))
+                    bool waitForInstall = Program.SystemConfig.getOptBoolean("steam.waitforinstall");
+                    SimpleLogger.Instance.Info("[Steam] 'waitforinstall' feature is set to: " + waitForInstall);
+
+                    if (waitForInstall)
                     {
                         if (!WaitForInstall())
                         {
