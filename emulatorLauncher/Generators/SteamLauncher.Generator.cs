@@ -29,8 +29,19 @@ namespace EmulatorLauncher
             {
                 if (_game != null && !_game.IsInstalled)
                 {
-                    Process.Start(new ProcessStartInfo() { FileName = _game.InstallUrl, UseShellExecute = true });
-                    return 0;
+                    if (EsFeatures.Instance.IsFeatureEnabled("steam.waitforinstall"))
+                    {
+                        if (!WaitForInstall())
+                        {
+                            SimpleLogger.Instance.Error("[ERROR] Steam game installation failed or was cancelled.");
+                            return -1;
+                        }
+                    }
+                    else
+                    {
+                        Process.Start(new ProcessStartInfo() { FileName = _game.InstallUrl, UseShellExecute = true });
+                        return 0;
+                    }
                 }
 
                 // Check if steam is already running
@@ -177,6 +188,61 @@ namespace EmulatorLauncher
                 // Kill steam if it was not running previously or if option is set in RetroBat
                 KillSteam(uiExists);
 
+                return true;
+            }
+
+            private bool WaitForInstall()
+            {
+                if (string.IsNullOrEmpty(_steamID))
+                    return false;
+
+                SimpleLogger.Instance.Info("[INFO] Waiting for game to be installed (AppID: " + _steamID + ").");
+
+                Process.Start(new ProcessStartInfo() { FileName = _game.InstallUrl, UseShellExecute = true });
+
+                // Wait for the game to be marked as installing
+                bool isInstalling = false;
+                for (int i = 0; i < 120; i++) // 120 seconds timeout to start installation
+                {
+                    try
+                    {
+                        using (var key = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Valve\\Steam\\Apps\\" + _steamID))
+                        {
+                            if (key != null && key.GetValue("Installing") != null && (int)key.GetValue("Installing") == 1)
+                            {
+                                isInstalling = true;
+                                break;
+                            }
+                        }
+                    }
+                    catch { }
+                    System.Threading.Thread.Sleep(1000);
+                }
+
+                if (!isInstalling)
+                {
+                    SimpleLogger.Instance.Info("[INFO] Timeout: Game did not start installing.");
+                    return false;
+                }
+
+                SimpleLogger.Instance.Info("[INFO] Game is installing. Monitoring registry for completion.");
+
+                // Wait for the game to finish installing
+                while (true)
+                {
+                    try
+                    {
+                        using (var key = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Valve\\Steam\\Apps\\" + _steamID))
+                        {
+                            if (key == null || key.GetValue("Installing") == null || (int)key.GetValue("Installing") == 0)
+                                break;
+                        }
+                    }
+                    catch { }
+                    System.Threading.Thread.Sleep(5000); // Check every 5 seconds
+                }
+
+                SimpleLogger.Instance.Info("[INFO] Game installation finished.");
                 return true;
             }
         }
