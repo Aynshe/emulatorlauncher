@@ -5,6 +5,7 @@ using System.Diagnostics;
 using EmulatorLauncher.Common.Launchers;
 using EmulatorLauncher.Common;
 using Microsoft.Win32;
+using EmulatorLauncher.Common.EmulationStation;
 
 namespace EmulatorLauncher
 {
@@ -111,7 +112,7 @@ namespace EmulatorLauncher
                     // Start game install
                     Process.Start(path);
 
-                    if (Features.IsSupported("steam.waitforinstall") && SystemConfig.isOptSet("steam.waitforinstall") && SystemConfig.getOptBoolean("steam.waitforinstall"))
+                    if (EsFeatures.Instance.IsSupported("steam.waitforinstall") && Program.SystemConfig.isOptSet("steam.waitforinstall") && Program.SystemConfig.getOptBoolean("steam.waitforinstall"))
                     {
                         if (!MonitorGameInstallation())
                         {
@@ -272,7 +273,9 @@ namespace EmulatorLauncher
                 }
 
                 SimpleLogger.Instance.Info("[INFO] Game has exited.");
+                // Kill steam if it was not running previously or if option is set in RetroBat
                 KillSteam(uiExists);
+
                 return true;
             }
         }
