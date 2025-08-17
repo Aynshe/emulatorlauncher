@@ -29,21 +29,22 @@ namespace EmulatorLauncher
             public override int RunAndWait(System.Diagnostics.ProcessStartInfo path)
             {
                 bool isInstalled = IsGameInstalled(_steamID);
+                if (isInstalled)
+                    SimpleLogger.Instance.Info("[INFO] Game is already installed.");
+                else
+                    SimpleLogger.Instance.Info("[INFO] Game is not installed.");
+
                 if (!isInstalled)
                 {
                     if (Program.SystemConfig.getOptBoolean("steam.waitforinstall"))
                     {
+                        SimpleLogger.Instance.Info("[INFO] 'waitforinstall' is enabled. Waiting for installation to complete.");
                         if (!WaitForInstall())
                         {
                             SimpleLogger.Instance.Error("[ERROR] Steam game installation failed or was cancelled.");
                             return -1;
                         }
-
                         _gameWasJustInstalled = true;
-
-                        var game = SteamLibrary.GetInstalledGames().FirstOrDefault(g => g.Id == _steamID);
-                        if (game != null)
-                            LauncherExe = game.ExecutableName;
                     }
                     else
                     {
@@ -72,7 +73,7 @@ namespace EmulatorLauncher
                     // Start game
                     Process.Start(path);
 
-                    // Get running game process (30 seconds delay 30x1000)
+                    // Get running game process
                     var steamGame = GetLauncherExeProcess(!_gameWasJustInstalled);
 
                     if (steamGame != null)
@@ -207,23 +208,54 @@ namespace EmulatorLauncher
                 if (string.IsNullOrEmpty(_steamID))
                     return false;
 
-                SimpleLogger.Instance.Info("[INFO] Waiting for game to be installed (AppID: " + _steamID + ").");
+                SimpleLogger.Instance.Info("[INFO] Waiting for game installation/update to complete (AppID: " + _steamID + ").");
 
                 Process.Start(new ProcessStartInfo() { FileName = "steam://install/" + _steamID, UseShellExecute = true });
 
-                for (int i = 0; i < 3600; i++) // Timeout of 1 hour
+                // Wait for the game to start updating/installing
+                bool isUpdating = false;
+                for (int i = 0; i < 120; i++) // 2 minutes timeout
                 {
-                    if (IsGameInstalled(_steamID))
+                    try
                     {
-                        SimpleLogger.Instance.Info("[INFO] Game installation finished.");
-                        return true;
+                        using (var key = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Valve\\Steam\\Apps\\" + _steamID))
+                        {
+                            if (key != null && key.GetValue("Updating") != null && (int)key.GetValue("Updating") == 1)
+                            {
+                                isUpdating = true;
+                                break;
+                            }
+                        }
                     }
-
-                    System.Threading.Thread.Sleep(1000); // Check every second
+                    catch { }
+                    System.Threading.Thread.Sleep(1000);
                 }
 
-                SimpleLogger.Instance.Info("[INFO] Timeout: Game installation did not complete within the time limit.");
-                return false;
+                if (!isUpdating)
+                {
+                    SimpleLogger.Instance.Info("[INFO] Timeout: Game did not start installing/updating.");
+                    return false;
+                }
+
+                SimpleLogger.Instance.Info("[INFO] Game is installing/updating. Monitoring registry for completion.");
+
+                // Wait for the update to finish
+                while (true)
+                {
+                    try
+                    {
+                        using (var key = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Valve\\Steam\\Apps\\" + _steamID))
+                        {
+                            if (key == null || key.GetValue("Updating") == null || (int)key.GetValue("Updating") == 0)
+                                break;
+                        }
+                    }
+                    catch { }
+                    System.Threading.Thread.Sleep(5000); // Check every 5 seconds
+                }
+
+                SimpleLogger.Instance.Info("[INFO] Game installation/update finished.");
+                return true;
             }
 
             private bool IsGameInstalled(string steamID)
