@@ -17,6 +17,8 @@ namespace EmulatorLauncher
         class SteamGameLauncher : GameLauncher
         {
             private string _steamID;
+            private bool _gameWasJustInstalled = false;
+
             public SteamGameLauncher(Uri uri)
             {
                 // Call method to get Steam executable
@@ -36,6 +38,12 @@ namespace EmulatorLauncher
                             SimpleLogger.Instance.Error("[ERROR] Steam game installation failed or was cancelled.");
                             return -1;
                         }
+
+                        _gameWasJustInstalled = true;
+
+                        var game = SteamLibrary.GetInstalledGames().FirstOrDefault(g => g.Id == _steamID);
+                        if (game != null)
+                            LauncherExe = game.ExecutableName;
                     }
                     else
                     {
@@ -65,7 +73,7 @@ namespace EmulatorLauncher
                     Process.Start(path);
 
                     // Get running game process (30 seconds delay 30x1000)
-                    var steamGame = GetLauncherExeProcess();
+                    var steamGame = GetLauncherExeProcess(!_gameWasJustInstalled);
 
                     if (steamGame != null)
                     {
