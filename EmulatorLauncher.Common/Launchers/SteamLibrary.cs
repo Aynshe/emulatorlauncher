@@ -16,7 +16,6 @@ namespace EmulatorLauncher.Common.Launchers
         // https://cdn.cloudflare.steamstatic.com/steam/apps/1515950/header.jpg
 
         const string GameLaunchUrl = @"steam://rungameid/{0}";
-        const string GameInstallUrl = @"steam://install/{0}";
         const string HeaderImageUrl = @"https://cdn.cloudflare.steamstatic.com/steam/apps/{0}/header.jpg";
 
         public static LauncherGameInfo[] GetInstalledGames()
@@ -77,7 +76,24 @@ namespace EmulatorLauncher.Common.Launchers
             return allGames.Values.ToArray();
         }
 
-        private static LauncherGameInfo[] GetOwnedGames(string retrobatPath)
+        public static LauncherGameInfo GetGameInfo(string steamID, string retrobatPath)
+        {
+            // First check if the game is installed
+            var installedGames = GetInstalledGames();
+            var installedGame = installedGames.FirstOrDefault(g => g.Id == steamID);
+            if (installedGame != null)
+                return installedGame;
+
+            // If not installed, get info from owned games
+            var ownedGames = GetOwnedGames(retrobatPath);
+            var ownedGame = ownedGames.FirstOrDefault(g => g.Id == steamID);
+            if (ownedGame != null)
+                return ownedGame;
+
+            return null;
+        }
+
+        public static LauncherGameInfo[] GetOwnedGames(string retrobatPath)
         {
             var games = new List<LauncherGameInfo>();
 
@@ -156,7 +172,6 @@ namespace EmulatorLauncher.Common.Launchers
                         Id = appId,
                         Name = name,
                         LauncherUrl = string.Format(GameLaunchUrl, appId),
-                        InstallUrl = string.Format(GameInstallUrl, appId),
                         PreviewImageUrl = string.Format(HeaderImageUrl, appId),
                         Launcher = GameLauncherType.Steam
                     };
@@ -415,7 +430,7 @@ namespace EmulatorLauncher.Common.Launchers
 
                     games.Add(game);
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
 
                 }

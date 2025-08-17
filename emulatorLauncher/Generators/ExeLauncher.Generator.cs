@@ -1,5 +1,4 @@
 ﻿using EmulatorLauncher.Common;
-using EmulatorLauncher.Common.Launchers;
 using EmulatorLauncher.Common.EmulationStation;
 using EmulatorLauncher.Common.FileFormats;
 using EmulatorLauncher.PadToKeyboard;
@@ -170,8 +169,8 @@ namespace EmulatorLauncher
 
                         if (uri.Scheme == "steam")
                         {
-                            var allGames = SteamLibrary.GetAllGames(Program.AppConfig.GetFullPath("retrobat"));
-                            var game = allGames.FirstOrDefault(g => g.LauncherUrl == uri.ToString());
+                            string steamID = uri.AbsolutePath.Substring(1);
+                            var game = SteamLibrary.GetGameInfo(steamID, Program.AppConfig.GetFullPath("retrobat"));
                             if (game != null)
                                 _gameLauncher = new SteamGameLauncher(game, uri);
                         }

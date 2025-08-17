@@ -200,46 +200,29 @@ namespace EmulatorLauncher
 
                 Process.Start(new ProcessStartInfo() { FileName = _game.InstallUrl, UseShellExecute = true });
 
-                // Wait for the game to be marked as installing
-                bool isInstalling = false;
-                for (int i = 0; i < 120; i++) // 120 seconds timeout to start installation
+                // Wait for the game to be installed by checking for the 'Installed' registry key
+                bool isInstalled = false;
+                for (int i = 0; i < 3600; i++) // Timeout of 1 hour
                 {
                     try
                     {
                         using (var key = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Valve\\Steam\\Apps\\" + _steamID))
                         {
-                            if (key != null && key.GetValue("Installing") != null && (int)key.GetValue("Installing") == 1)
+                            if (key != null && key.GetValue("Installed") != null && (int)key.GetValue("Installed") == 1)
                             {
-                                isInstalling = true;
+                                isInstalled = true;
                                 break;
                             }
                         }
                     }
                     catch { }
-                    System.Threading.Thread.Sleep(1000);
+                    System.Threading.Thread.Sleep(1000); // Check every second
                 }
 
-                if (!isInstalling)
+                if (!isInstalled)
                 {
-                    SimpleLogger.Instance.Info("[INFO] Timeout: Game did not start installing.");
+                    SimpleLogger.Instance.Info("[INFO] Timeout: Game installation did not complete within the time limit.");
                     return false;
-                }
-
-                SimpleLogger.Instance.Info("[INFO] Game is installing. Monitoring registry for completion.");
-
-                // Wait for the game to finish installing
-                while (true)
-                {
-                    try
-                    {
-                        using (var key = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Valve\\Steam\\Apps\\" + _steamID))
-                        {
-                            if (key == null || key.GetValue("Installing") == null || (int)key.GetValue("Installing") == 0)
-                                break;
-                        }
-                    }
-                    catch { }
-                    System.Threading.Thread.Sleep(5000); // Check every 5 seconds
                 }
 
                 SimpleLogger.Instance.Info("[INFO] Game installation finished.");
