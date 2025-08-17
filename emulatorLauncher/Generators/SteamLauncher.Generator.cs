@@ -21,42 +21,129 @@ namespace EmulatorLauncher
                 LauncherExe = SteamLibrary.GetSteamGameExecutableName(uri, steamInternalDBPath, out _steamID);
             }
 
-            public override int RunAndWait(System.Diagnostics.ProcessStartInfo path)
+            private bool IsGameInstalled()
             {
-                // Check if steam is already running
+                if (string.IsNullOrEmpty(_steamID))
+                    return false;
+
+                string sid = RegistryKeyEx.GetCurrentUserSid();
+                if (string.IsNullOrEmpty(sid))
+                {
+                    SimpleLogger.Instance.Info("[STEAM] Unable to get current user SID.");
+                    return false;
+                }
+
+                var key = RegistryKeyEx.Users.OpenSubKey(sid + "\\Software\\Valve\\Steam\\Apps\\" + _steamID);
+                if (key == null)
+                {
+                    // Fallback to CurrentUser for compatibility or different steam installs
+                    key = RegistryKeyEx.CurrentUser.OpenSubKey("Software\\Valve\\Steam\\Apps\\" + _steamID);
+                    if (key == null)
+                        return false;
+                }
+
+                using (key)
+                {
+                    var installed = key.GetValue("Installed");
+                    if (installed != null && installed is int && (int)installed == 1)
+                        return true;
+                }
+
+                return false;
+            }
+
+            private bool MonitorGameInstallation()
+            {
+                if (string.IsNullOrEmpty(_steamID))
+                    return false;
+
+                SimpleLogger.Instance.Info("[STEAM] Waiting for game installation to complete (AppID: " + _steamID + ").");
+
+                string sid = RegistryKeyEx.GetCurrentUserSid();
+                if (string.IsNullOrEmpty(sid))
+                {
+                    SimpleLogger.Instance.Info("[STEAM] Failed to get current user SID. Cannot monitor installation.");
+                    return false;
+                }
+
+                // Wait for installation, with a long timeout (e.g., 2 hours = 7200 seconds)
+                for (int i = 0; i < 7200; i++)
+                {
+                    var key = RegistryKeyEx.Users.OpenSubKey(sid + "\\Software\\Valve\\Steam\\Apps\\" + _steamID);
+                    if (key == null)
+                        key = RegistryKeyEx.CurrentUser.OpenSubKey("Software\\Valve\\Steam\\Apps\\" + _steamID);
+
+                    if (key != null)
+                    {
+                        using (key)
+                        {
+                            var installed = key.GetValue("Installed");
+                            var updating = key.GetValue("Updating");
+
+                            if (installed != null && installed is int && (int)installed == 1 && (updating == null || (updating is int && (int)updating == 0)))
+                            {
+                                SimpleLogger.Instance.Info("[STEAM] Game " + _steamID + " installation complete.");
+                                return true;
+                            }
+                        }
+                    }
+
+                    System.Threading.Thread.Sleep(1000);
+                }
+
+                SimpleLogger.Instance.Info("[STEAM] Timeout: Game installation did not complete.");
+                return false;
+            }
+
+            public override int RunAndWait(ProcessStartInfo path)
+            {
                 bool uiExists = Process.GetProcessesByName("steam").Any();
                 if (uiExists)
                     SimpleLogger.Instance.Info("[INFO] Steam found running already.");
                 else
                     SimpleLogger.Instance.Info("[INFO] Steam not yet running.");
 
+                if (!IsGameInstalled())
+                {
+                    SimpleLogger.Instance.Info("[INFO] Game is not installed. Triggering installation.");
+                    Process.Start(path);
+
+                    if (Features.IsSupported("steam.waitforinstall") && SystemConfig.isOptSet("steam.waitforinstall") && SystemConfig.getOptBoolean("steam.waitforinstall"))
+                    {
+                        if (!MonitorGameInstallation())
+                        {
+                            SimpleLogger.Instance.Info("[INFO] Failed to install the game within the time limit.");
+                            KillSteam(uiExists);
+                            return -1;
+                        }
+                        SimpleLogger.Instance.Info("[INFO] Installation complete. Game will now be launched.");
+                    }
+                    else
+                    {
+                        SimpleLogger.Instance.Info("[INFO] 'waitforinstall' is disabled. Exiting after triggering installation.");
+                        return 0;
+                    }
+                }
+
+                var launchUri = new Uri(path.FileName.Replace("install", "launch"));
+                var launchPathInfo = new ProcessStartInfo(launchUri.ToString()) { UseShellExecute = true };
+
                 if (LauncherExe != null)
                 {
                     SimpleLogger.Instance.Info("[INFO] Executable name : " + LauncherExe);
-
-                    // Kill game if already running
                     KillExistingLauncherExes();
-
-                    // Start game
-                    Process.Start(path);
-
-                    // Get running game process (30 seconds delay 30x1000)
+                    Process.Start(launchPathInfo);
                     var steamGame = GetLauncherExeProcess();
-
                     if (steamGame != null)
                     {
                         steamGame.WaitForExit();
-
-                        // Kill steam if it was not running previously or if option is set in RetroBat
                         KillSteam(uiExists);
                     }
                     return 0;
                 }
                 else
                 {
-                    // Start game
-                    Process.Start(path);
-
+                    Process.Start(launchPathInfo);
                     if (MonitorGameByRegistry(uiExists))
                         return 0;
 
@@ -67,8 +154,6 @@ namespace EmulatorLauncher
                         SimpleLogger.Instance.Info("[INFO] Game process '" + gameProcess.ProcessName + "' identified by window focus. Monitoring process.");
                         gameProcess.WaitForExit();
                         SimpleLogger.Instance.Info("[INFO] Game process has exited.");
-
-                        // Kill steam if it was not running previously or if option is set in RetroBat
                         KillSteam(uiExists);
                     }
                     else
@@ -87,26 +172,13 @@ namespace EmulatorLauncher
                 else
                     SimpleLogger.Instance.Info("[INFO] Steam will be killed if not running before.");
 
-                // Kill steam if it was not running previously or if option is set in RetroBat
-                if (Program.SystemConfig.getOptBoolean("killsteam"))
+                if (Program.SystemConfig.getOptBoolean("killsteam") || (!Program.SystemConfig.isOptSet("killsteam") && !uiExists))
                 {
                     foreach (var ui in Process.GetProcessesByName("steam"))
                     {
                         try { ui.Kill(); }
                         catch { }
                         SimpleLogger.Instance.Info("[INFO] Killing Steam.");
-                    }
-                }
-                else if (!Program.SystemConfig.isOptSet("killsteam"))
-                {
-                    if (!uiExists)
-                    {
-                        foreach (var ui in Process.GetProcessesByName("steam"))
-                        {
-                            try { ui.Kill(); }
-                            catch { }
-                            SimpleLogger.Instance.Info("[INFO] Killing Steam.");
-                        }
                     }
                 }
             }
@@ -118,29 +190,41 @@ namespace EmulatorLauncher
 
                 SimpleLogger.Instance.Info("[INFO] Monitoring registry for game start (AppID: " + _steamID + ").");
 
+                string sid = RegistryKeyEx.GetCurrentUserSid();
+                if (string.IsNullOrEmpty(sid))
+                {
+                    SimpleLogger.Instance.Info("[STEAM] Failed to get current user SID. Cannot monitor game. Falling back to HKEY_CURRENT_USER.");
+                }
+
                 // Wait for the game to be marked as running, with a 60-second timeout
                 bool gameStarted = false;
                 for (int i = 0; i < 60; i++)
                 {
-                    try
+                    RegistryKeyEx key = null;
+                    if (!string.IsNullOrEmpty(sid))
+                        key = RegistryKeyEx.Users.OpenSubKey(sid + "\\Software\\Valve\\Steam\\Apps\\" + _steamID);
+
+                    if (key == null)
+                        key = RegistryKeyEx.CurrentUser.OpenSubKey("SOFTWARE\\Valve\\Steam\\Apps\\" + _steamID);
+
+                    if (key != null)
                     {
-                        using (var key = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Valve\\Steam\\Apps\\" + _steamID))
+                        using (key)
                         {
-                            if (key != null && key.GetValue("Running") != null && (int)key.GetValue("Running") == 1)
+                            if (key.GetValue("Running") != null && (int)key.GetValue("Running") == 1)
                             {
                                 gameStarted = true;
                                 break;
                             }
                         }
                     }
-                    catch { }
+
                     System.Threading.Thread.Sleep(1000);
                 }
 
                 if (!gameStarted)
                 {
                     SimpleLogger.Instance.Info("[INFO] Timeout: Game did not appear as 'Running' in the registry.");
-                    // Kill steam if it was not running previously or if option is set in RetroBat
                     KillSteam(uiExists);
                     return false;
                 }
@@ -150,23 +234,29 @@ namespace EmulatorLauncher
                 // Wait for the game to exit
                 while (true)
                 {
-                    try
+                    RegistryKeyEx key = null;
+                    if (!string.IsNullOrEmpty(sid))
+                        key = RegistryKeyEx.Users.OpenSubKey(sid + "\\Software\\Valve\\Steam\\Apps\\" + _steamID);
+
+                    if (key == null)
+                        key = RegistryKeyEx.CurrentUser.OpenSubKey("SOFTWARE\\Valve\\Steam\\Apps\\" + _steamID);
+
+                    if (key != null)
                     {
-                        using (var key = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Valve\\Steam\\Apps\\" + _steamID))
+                        using (key)
                         {
-                            if (key == null || (key.GetValue("Running") != null && (int)key.GetValue("Running") == 0))
+                            if (key.GetValue("Running") == null || (key.GetValue("Running") != null && (int)key.GetValue("Running") == 0))
                                 break;
                         }
                     }
-                    catch { }
+                    else
+                        break;
+
                     System.Threading.Thread.Sleep(1000);
                 }
 
                 SimpleLogger.Instance.Info("[INFO] Game has exited.");
-
-                // Kill steam if it was not running previously or if option is set in RetroBat
                 KillSteam(uiExists);
-
                 return true;
             }
         }
