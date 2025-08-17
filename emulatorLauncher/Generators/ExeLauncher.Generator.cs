@@ -31,13 +31,13 @@ namespace EmulatorLauncher
 
         private GameLauncher _gameLauncher;
 
-        static readonly Dictionary<string, Func<Uri, GameLauncher>> launchers = new Dictionary<string, Func<Uri, GameLauncher>>()
+        static readonly Dictionary<string, Func<LauncherGameInfo, Uri, GameLauncher>> launchers = new Dictionary<string, Func<LauncherGameInfo, Uri, GameLauncher>>()
         {
-            { "file", (uri) => new LocalFileGameLauncher(uri) },
-            { "com.epicgames.launcher", (uri) => new EpicGameLauncher(uri) },
-            { "steam", (uri) => new SteamGameLauncher(uri) },
-            { "amazon-games", (uri) => new AmazonGameLauncher(uri) },
-            { "goggalaxy", (uri) => new GogGameLauncher(uri) },
+            { "file", (game, uri) => new LocalFileGameLauncher(uri) },
+            { "com.epicgames.launcher", (game, uri) => new EpicGameLauncher(uri) },
+            { "steam", (game, uri) => new SteamGameLauncher(game, uri) },
+            { "amazon-games", (game, uri) => new AmazonGameLauncher(uri) },
+            { "goggalaxy", (game, uri) => new GogGameLauncher(uri) },
         };
 
         public override System.Diagnostics.ProcessStartInfo Generate(string system, string emulator, string core, string rom, string playersControllers, ScreenResolution resolution)
@@ -167,8 +167,15 @@ namespace EmulatorLauncher
                     {
                         var uri = new Uri(IniFile.FromFile(rom).GetValue("InternetShortcut", "URL"));
 
-                        if (launchers.TryGetValue(uri.Scheme, out Func<Uri, GameLauncher> gameLauncherInstanceBuilder))
-                            _gameLauncher = gameLauncherInstanceBuilder(uri);
+                        if (uri.Scheme == "steam")
+                        {
+                            var allGames = SteamLibrary.GetAllGames(Program.AppConfig.GetFullPath("retrobat"));
+                            var game = allGames.FirstOrDefault(g => g.LauncherUrl == uri.ToString());
+                            if (game != null)
+                                _gameLauncher = new SteamGameLauncher(game, uri);
+                        }
+                        else if (launchers.TryGetValue(uri.Scheme, out Func<LauncherGameInfo, Uri, GameLauncher> gameLauncherInstanceBuilder))
+                            _gameLauncher = gameLauncherInstanceBuilder(null, uri);
                     }
                     catch (Exception ex)
                     {

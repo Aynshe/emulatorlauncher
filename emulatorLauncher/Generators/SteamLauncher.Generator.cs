@@ -14,8 +14,12 @@ namespace EmulatorLauncher
         class SteamGameLauncher : GameLauncher
         {
             private string _steamID;
-            public SteamGameLauncher(Uri uri)
+            private LauncherGameInfo _game;
+
+            public SteamGameLauncher(LauncherGameInfo game, Uri uri)
             {
+                _game = game;
+
                 // Call method to get Steam executable
                 string steamInternalDBPath = Path.Combine(Program.AppConfig.GetFullPath("retrobat"), "system", "tools", "steamexecutables.json");
                 LauncherExe = SteamLibrary.GetSteamGameExecutableName(uri, steamInternalDBPath, out _steamID);
@@ -23,6 +27,12 @@ namespace EmulatorLauncher
 
             public override int RunAndWait(System.Diagnostics.ProcessStartInfo path)
             {
+                if (_game != null && !_game.IsInstalled)
+                {
+                    Process.Start(new ProcessStartInfo() { FileName = _game.InstallUrl, UseShellExecute = true });
+                    return 0;
+                }
+
                 // Check if steam is already running
                 bool uiExists = Process.GetProcessesByName("steam").Any();
                 if (uiExists)
