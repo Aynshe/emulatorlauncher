@@ -5,9 +5,9 @@ using System.Diagnostics;
 using EmulatorLauncher.Common.Launchers;
 using EmulatorLauncher.Common;
 using Microsoft.Win32;
-using System.Collections.Generic;
-using Steam_Library_Manager.Framework;
 using EmulatorLauncher.Common.EmulationStation;
+using System.Collections.Generic;
+using System.Threading;
 
 namespace EmulatorLauncher
 {
@@ -17,8 +17,6 @@ namespace EmulatorLauncher
         class SteamGameLauncher : GameLauncher
         {
             private string _steamID;
-            private bool _gameWasJustInstalled = false;
-
             public SteamGameLauncher(Uri uri)
             {
                 // Call method to get Steam executable
@@ -28,42 +26,67 @@ namespace EmulatorLauncher
 
             public override int RunAndWait(System.Diagnostics.ProcessStartInfo path)
             {
-                bool isInstalled = IsGameInstalled(_steamID);
-                if (isInstalled)
-                    SimpleLogger.Instance.Info("[INFO] Game is already installed.");
-                else
-                    SimpleLogger.Instance.Info("[INFO] Game is not installed.");
+                bool isInstalled = SteamLibrary.GetInstalledGames().Any(g => g.Id == _steamID);
 
                 if (!isInstalled)
                 {
-                    if (Program.SystemConfig.getOptBoolean("steam.waitforinstall"))
+                    SimpleLogger.Instance.Info("[INFO] Game with SteamID " + _steamID + " is not installed.");
+
+                    // Launch the installation. Note: There is no known way to force a specific Steam library folder via the steam://install protocol.
+                    // Steam will prompt the user for a drive if multiple libraries are set up.
+                    Process.Start(new ProcessStartInfo() { FileName = "steam://install/" + _steamID, UseShellExecute = true });
+
+                    if (Program.Features.IsFeatureEnabled("steam.waitforinstall"))
                     {
-                        SimpleLogger.Instance.Info("[INFO] 'waitforinstall' is enabled. Waiting for installation to complete.");
-                        if (!WaitForInstall())
+                        SimpleLogger.Instance.Info("[INFO] 'steam.waitforinstall' is enabled. Waiting for installation to complete.");
+
+                        if (WaitForInstall(_steamID))
                         {
-                            SimpleLogger.Instance.Error("[ERROR] Steam game installation failed or was cancelled.");
+                            SimpleLogger.Instance.Info("[INFO] Installation complete. Launching game.");
+
+                            var game = SteamLibrary.GetInstalledGames().FirstOrDefault(g => g.Id == _steamID);
+                            if (game != null && !string.IsNullOrEmpty(game.ExecutablePath) && !string.IsNullOrEmpty(game.InstallDirectory))
+                            {
+                                bool uiExists = Process.GetProcessesByName("steam").Any();
+
+                                var newPath = new ProcessStartInfo()
+                                {
+                                    FileName = game.ExecutablePath,
+                                    WorkingDirectory = game.InstallDirectory
+                                };
+
+                                Process.Start(newPath);
+
+                                var gameProcess = GetLauncherExeProcess(game.ExecutableName);
+                                if (gameProcess != null)
+                                {
+                                    gameProcess.WaitForExit();
+                                    KillSteam(uiExists);
+                                }
+                                return 0;
+                            }
+                            else
+                            {
+                                SimpleLogger.Instance.Error("[ERROR] Game was installed, but could not find executable path. Cannot launch.");
+                                return -1;
+                            }
+                        }
+                        else
+                        {
+                            SimpleLogger.Instance.Error("[ERROR] Steam game installation failed or was cancelled by user.");
                             return -1;
                         }
-                        _gameWasJustInstalled = true;
-
-                        // After installation, find the executable name
-                        var game = SteamLibrary.GetInstalledGames().FirstOrDefault(g => g.Id == _steamID);
-                        if (game != null)
-                            LauncherExe = game.ExecutableName;
                     }
                     else
                     {
-                        // Launch the installation and return immediately.
-                        // Note: Steam will still prompt for an installation directory if multiple libraries are set up.
-                        // There is no known way to force a specific library via the steam://install protocol.
-                        Process.Start(new ProcessStartInfo() { FileName = "steam://install/" + _steamID, UseShellExecute = true });
+                        SimpleLogger.Instance.Info("[INFO] 'steam.waitforinstall' is disabled. Returning to UI.");
                         return 0;
                     }
                 }
 
                 // Check if steam is already running
-                bool uiExists = Process.GetProcessesByName("steam").Any();
-                if (uiExists)
+                bool uiExistsOriginal = Process.GetProcessesByName("steam").Any();
+                if (uiExistsOriginal)
                     SimpleLogger.Instance.Info("[INFO] Steam found running already.");
                 else
                     SimpleLogger.Instance.Info("[INFO] Steam not yet running.");
@@ -78,29 +101,15 @@ namespace EmulatorLauncher
                     // Start game
                     Process.Start(path);
 
-                    Process steamGame;
-                    if (_gameWasJustInstalled)
-                    {
-                        SimpleLogger.Instance.Info("[INFO] Waiting indefinitely for game process to start after installation.");
-                        steamGame = null;
-                        while (steamGame == null)
-                        {
-                            steamGame = Process.GetProcessesByName(LauncherExe).FirstOrDefault();
-                            System.Threading.Thread.Sleep(1000);
-                        }
-                    }
-                    else
-                    {
-                        // Get running game process (30 seconds delay 30x1000)
-                        steamGame = GetLauncherExeProcess();
-                    }
+                    // Get running game process (30 seconds delay 30x1000)
+                    var steamGame = GetLauncherExeProcess();
 
                     if (steamGame != null)
                     {
                         steamGame.WaitForExit();
 
                         // Kill steam if it was not running previously or if option is set in RetroBat
-                        KillSteam(uiExists);
+                        KillSteam(uiExistsOriginal);
                     }
                     return 0;
                 }
@@ -109,7 +118,7 @@ namespace EmulatorLauncher
                     // Start game
                     Process.Start(path);
 
-                    if (MonitorGameByRegistry(uiExists))
+                    if (MonitorGameByRegistry(uiExistsOriginal))
                         return 0;
 
                     SimpleLogger.Instance.Info("[INFO] Registry monitoring failed. Falling back to window focus detection.");
@@ -121,13 +130,92 @@ namespace EmulatorLauncher
                         SimpleLogger.Instance.Info("[INFO] Game process has exited.");
 
                         // Kill steam if it was not running previously or if option is set in RetroBat
-                        KillSteam(uiExists);
+                        KillSteam(uiExistsOriginal);
                     }
                     else
                         SimpleLogger.Instance.Info("[INFO] All fallback methods failed. Unable to monitor game process.");
 
                     return 0;
                 }
+            }
+
+            private bool WaitForInstall(string steamID)
+            {
+                if (string.IsNullOrEmpty(steamID))
+                    return false;
+
+                SimpleLogger.Instance.Info("[INFO] Waiting for game installation/update to start (AppID: " + steamID + "). This may take time if user interaction is required in Steam.");
+
+                bool isUpdating = false;
+                for (int i = 0; i < 120; i++) // 2 minutes timeout for user to start the install
+                {
+                    try
+                    {
+                        using (var key = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Valve\\Steam\\Apps\\" + steamID))
+                        {
+                            if (key != null && key.GetValue("Updating") != null && (int)key.GetValue("Updating") == 1)
+                            {
+                                isUpdating = true;
+                                break;
+                            }
+                        }
+                    }
+                    catch { }
+                    Thread.Sleep(1000);
+                }
+
+                if (!isUpdating)
+                {
+                    SimpleLogger.Instance.Info("[INFO] Timeout: Game did not start installing/updating within 2 minutes.");
+                    return false;
+                }
+
+                SimpleLogger.Instance.Info("[INFO] Game is installing/updating. Monitoring registry for completion.");
+
+                while (true)
+                {
+                    try
+                    {
+                        using (var key = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Valve\\Steam\\Apps\\" + steamID))
+                        {
+                            if (key == null || key.GetValue("Updating") == null || (int)key.GetValue("Updating") == 0)
+                                break;
+                        }
+                    }
+                    catch { }
+                    Thread.Sleep(5000);
+                }
+
+                SimpleLogger.Instance.Info("[INFO] Game installation/update finished.");
+                return true;
+            }
+
+            protected Process GetLauncherExeProcess(string exeName)
+            {
+                Process launcherprocess = null;
+
+                int waitttime = 30;
+                if (Program.SystemConfig.isOptSet("steam_wait") && !string.IsNullOrEmpty(Program.SystemConfig["steam_wait"]))
+                    waitttime = Program.SystemConfig["steam_wait"].ToInteger();
+
+                SimpleLogger.Instance.Info("[INFO] Waiting " + waitttime.ToString() + " seconds for game process '" + exeName + "' to appear.");
+
+                for (int i = 0; i < waitttime; i++)
+                {
+                    launcherprocess = Process.GetProcessesByName(exeName).FirstOrDefault();
+                    if (launcherprocess != null)
+                    {
+                        SimpleLogger.Instance.Info("[INFO] Game process found.");
+                        break;
+                    }
+
+                    Thread.Sleep(1000);
+                }
+
+                if (launcherprocess == null)
+                    SimpleLogger.Instance.Info("[INFO] Game process did not appear in time.");
+
+                return launcherprocess;
             }
 
             private void KillSteam(bool uiExists)
@@ -220,132 +308,6 @@ namespace EmulatorLauncher
                 KillSteam(uiExists);
 
                 return true;
-            }
-
-            private bool WaitForInstall()
-            {
-                if (string.IsNullOrEmpty(_steamID))
-                    return false;
-
-                SimpleLogger.Instance.Info("[INFO] Waiting for game installation/update to complete (AppID: " + _steamID + ").");
-
-                Process.Start(new ProcessStartInfo() { FileName = "steam://install/" + _steamID, UseShellExecute = true });
-
-                // Wait for the game to start updating/installing
-                bool isUpdating = false;
-                for (int i = 0; i < 120; i++) // 2 minutes timeout
-                {
-                    try
-                    {
-                        using (var key = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Valve\\Steam\\Apps\\" + _steamID))
-                        {
-                            if (key != null && key.GetValue("Updating") != null && (int)key.GetValue("Updating") == 1)
-                            {
-                                isUpdating = true;
-                                break;
-                            }
-                        }
-                    }
-                    catch { }
-                    System.Threading.Thread.Sleep(1000);
-                }
-
-                if (!isUpdating)
-                {
-                    SimpleLogger.Instance.Info("[INFO] Timeout: Game did not start installing/updating.");
-                    return false;
-                }
-
-                SimpleLogger.Instance.Info("[INFO] Game is installing/updating. Monitoring registry for completion.");
-
-                // Wait for the update to finish
-                while (true)
-                {
-                    try
-                    {
-                        using (var key = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Valve\\Steam\\Apps\\" + _steamID))
-                        {
-                            if (key == null || key.GetValue("Updating") == null || (int)key.GetValue("Updating") == 0)
-                                break;
-                        }
-                    }
-                    catch { }
-                    System.Threading.Thread.Sleep(5000); // Check every 5 seconds
-                }
-
-                SimpleLogger.Instance.Info("[INFO] Game installation/update finished.");
-                return true;
-            }
-
-            private bool IsGameInstalled(string steamID)
-            {
-                string steamPath = GetInstallPath();
-                if (string.IsNullOrEmpty(steamPath))
-                    return false;
-
-                var libraryFolders = GetLibraryFolders();
-                if (libraryFolders == null)
-                    return false;
-
-                foreach (var library in libraryFolders)
-                {
-                    string manifestPath = Path.Combine(library, "steamapps", "appmanifest_" + steamID + ".acf");
-                    if (File.Exists(manifestPath))
-                        return true;
-                }
-
-                return false;
-            }
-
-            private List<string> GetLibraryFolders()
-            {
-                string libraryfoldersPath = Path.Combine(GetInstallPath(), "config", "libraryfolders.vdf");
-
-                try
-                {
-                    var libraryfolders = new KeyValue();
-                    libraryfolders.ReadFileAsText(libraryfoldersPath);
-
-                    var dbs = new List<string>();
-                    foreach (var child in libraryfolders.Children)
-                    {
-                        int val;
-                        if (int.TryParse(child.Name, out val))
-                        {
-                            if (!string.IsNullOrEmpty(child.Value) && Directory.Exists(child.Value))
-                                dbs.Add(child.Value);
-                            else if (child.Children != null && child.Children.Count > 0)
-                            {
-                                var path = child.Children.FirstOrDefault(a => a.Name != null && a.Name.Equals("path", StringComparison.OrdinalIgnoreCase) == true);
-                                if (!string.IsNullOrEmpty(path.Value) && Directory.Exists(path.Value))
-                                    dbs.Add(path.Value);
-                            }
-                        }
-                    }
-                    return dbs;
-                }
-                catch { }
-
-                return new List<string>();
-            }
-
-            private string GetInstallPath()
-            {
-                try
-                {
-                    using (var key = Registry.LocalMachine.OpenSubKey("SOFTWARE\\WOW6432Node\\Valve\\Steam"))
-                    {
-                        if (key != null)
-                        {
-                            var o = key.GetValue("InstallPath");
-                            if (o != null)
-                                return o as string;
-                        }
-                    }
-                }
-                catch { }
-
-                return null;
             }
         }
     }
