@@ -46,8 +46,15 @@ namespace EmulatorLauncher
                 using (key)
                 {
                     var installed = key.GetValue("Installed");
+                    var updating = key.GetValue("Updating");
+
                     if (installed != null && installed is int && (int)installed == 1)
-                        return true;
+                    {
+                        if (updating != null && updating is int && (int)updating == 1)
+                            return false; // It's updating, so not "ready to play"
+
+                        return true; // Installed and not updating
+                    }
                 }
 
                 return false;
@@ -60,35 +67,14 @@ namespace EmulatorLauncher
 
                 SimpleLogger.Instance.Info("[STEAM] Waiting for game installation to complete (AppID: " + _steamID + ").");
 
-                string sid = RegistryKeyEx.GetCurrentUserSid();
-                if (string.IsNullOrEmpty(sid))
-                {
-                    SimpleLogger.Instance.Info("[STEAM] Failed to get current user SID. Cannot monitor installation.");
-                    return false;
-                }
-
                 // Wait for installation, with a long timeout (e.g., 2 hours = 7200 seconds)
                 for (int i = 0; i < 7200; i++)
                 {
-                    var key = RegistryKeyEx.Users.OpenSubKey(sid + "\\Software\\Valve\\Steam\\Apps\\" + _steamID);
-                    if (key == null)
-                        key = RegistryKeyEx.CurrentUser.OpenSubKey("Software\\Valve\\Steam\\Apps\\" + _steamID);
-
-                    if (key != null)
+                    if (IsGameInstalled())
                     {
-                        using (key)
-                        {
-                            var installed = key.GetValue("Installed");
-                            var updating = key.GetValue("Updating");
-
-                            if (installed != null && installed is int && (int)installed == 1 && (updating == null || (updating is int && (int)updating == 0)))
-                            {
-                                SimpleLogger.Instance.Info("[STEAM] Game " + _steamID + " installation complete.");
-                                return true;
-                            }
-                        }
+                        SimpleLogger.Instance.Info("[STEAM] Game " + _steamID + " installation complete.");
+                        return true;
                     }
-
                     System.Threading.Thread.Sleep(1000);
                 }
 
@@ -130,8 +116,11 @@ namespace EmulatorLauncher
                     }
                 }
 
-                var launchUri = new Uri(path.FileName.Replace("install", "launch"));
-                var launchPathInfo = new ProcessStartInfo(launchUri.ToString()) { UseShellExecute = true };
+                var launchUri = new Uri(path.FileName.Replace("install", "rungameid"));
+                var launchPathInfo = new ProcessStartInfo();
+                launchPathInfo.FileName = launchUri.ToString();
+                launchPathInfo.Arguments = "-silent";
+                launchPathInfo.UseShellExecute = true;
 
                 if (LauncherExe != null)
                 {
