@@ -16,7 +16,6 @@ namespace EmulatorLauncher.Common.Launchers
         // https://cdn.cloudflare.steamstatic.com/steam/apps/1515950/header.jpg
 
         const string GameLaunchUrl = @"steam://rungameid/{0}";
-        const string GameInstallUrl = @"steam://install/{0}";
         const string HeaderImageUrl = @"https://cdn.cloudflare.steamstatic.com/steam/apps/{0}/header.jpg";
 
         public static LauncherGameInfo[] GetInstalledGames()
@@ -77,24 +76,7 @@ namespace EmulatorLauncher.Common.Launchers
             return allGames.Values.ToArray();
         }
 
-        public static LauncherGameInfo GetGameInfo(string steamID, string retrobatPath)
-        {
-            // First check if the game is installed
-            var installedGames = GetInstalledGames();
-            var installedGame = installedGames.FirstOrDefault(g => g.Id == steamID);
-            if (installedGame != null)
-                return installedGame;
-
-            // If not installed, get info from owned games
-            var ownedGames = GetOwnedGames(retrobatPath);
-            var ownedGame = ownedGames.FirstOrDefault(g => g.Id == steamID);
-            if (ownedGame != null)
-                return ownedGame;
-
-            return null;
-        }
-
-        public static LauncherGameInfo[] GetOwnedGames(string retrobatPath)
+        private static LauncherGameInfo[] GetOwnedGames(string retrobatPath)
         {
             var games = new List<LauncherGameInfo>();
 
@@ -173,7 +155,6 @@ namespace EmulatorLauncher.Common.Launchers
                         Id = appId,
                         Name = name,
                         LauncherUrl = string.Format(GameLaunchUrl, appId),
-                        InstallUrl = string.Format(GameInstallUrl, appId),
                         PreviewImageUrl = string.Format(HeaderImageUrl, appId),
                         Launcher = GameLauncherType.Steam
                     };
@@ -504,7 +485,42 @@ namespace EmulatorLauncher.Common.Launchers
             return game;
         }
 
-        static List<string> GetLibraryFolders(KeyValue foldersData)
+        public static bool IsGameInstalled(string steamID)
+        {
+            string steamPath = GetInstallPath();
+            if (string.IsNullOrEmpty(steamPath))
+                return false;
+
+            var libraryFolders = GetLibraryFolders();
+            if (libraryFolders == null)
+                return false;
+
+            foreach (var library in libraryFolders)
+            {
+                string manifestPath = Path.Combine(library, "steamapps", "appmanifest_" + steamID + ".acf");
+                if (File.Exists(manifestPath))
+                    return true;
+            }
+
+            return false;
+        }
+
+        public static List<string> GetLibraryFolders()
+        {
+            string libraryfoldersPath = Path.Combine(GetInstallPath(), "config", "libraryfolders.vdf");
+
+            try
+            {
+                var libraryfolders = new KeyValue();
+                libraryfolders.ReadFileAsText(libraryfoldersPath);
+                return GetLibraryFolders(libraryfolders);
+            }
+            catch { }
+
+            return new List<string>();
+        }
+
+        private static List<string> GetLibraryFolders(KeyValue foldersData)
         {
             var dbs = new List<string>();
             foreach (var child in foldersData.Children)

@@ -1,5 +1,4 @@
 ﻿using EmulatorLauncher.Common;
-using EmulatorLauncher.Common.Launchers;
 using EmulatorLauncher.Common.EmulationStation;
 using EmulatorLauncher.Common.FileFormats;
 using EmulatorLauncher.PadToKeyboard;
@@ -32,13 +31,13 @@ namespace EmulatorLauncher
 
         private GameLauncher _gameLauncher;
 
-        static readonly Dictionary<string, Func<LauncherGameInfo, Uri, GameLauncher>> launchers = new Dictionary<string, Func<LauncherGameInfo, Uri, GameLauncher>>()
+        static readonly Dictionary<string, Func<Uri, GameLauncher>> launchers = new Dictionary<string, Func<Uri, GameLauncher>>()
         {
-            { "file", (game, uri) => new LocalFileGameLauncher(uri) },
-            { "com.epicgames.launcher", (game, uri) => new EpicGameLauncher(uri) },
-            { "steam", (game, uri) => new SteamGameLauncher(game, uri) },
-            { "amazon-games", (game, uri) => new AmazonGameLauncher(uri) },
-            { "goggalaxy", (game, uri) => new GogGameLauncher(uri) },
+            { "file", (uri) => new LocalFileGameLauncher(uri) },
+            { "com.epicgames.launcher", (uri) => new EpicGameLauncher(uri) },
+            { "steam", (uri) => new SteamGameLauncher(uri) },
+            { "amazon-games", (uri) => new AmazonGameLauncher(uri) },
+            { "goggalaxy", (uri) => new GogGameLauncher(uri) },
         };
 
         public override System.Diagnostics.ProcessStartInfo Generate(string system, string emulator, string core, string rom, string playersControllers, ScreenResolution resolution)
@@ -70,9 +69,9 @@ namespace EmulatorLauncher
                         string gameId = match.Groups[1].Value;
                         var uri = new Uri($"goggalaxy:{gameId}");
 
-                        if (launchers.TryGetValue(uri.Scheme, out Func<LauncherGameInfo, Uri, GameLauncher> gameLauncherInstanceBuilder))
+                        if (launchers.TryGetValue(uri.Scheme, out Func<Uri, GameLauncher> gameLauncherInstanceBuilder))
                         {
-                            _gameLauncher = gameLauncherInstanceBuilder(null, uri);
+                            _gameLauncher = gameLauncherInstanceBuilder(uri);
                             goto GOGBYPASS;
                         }
                     }
@@ -168,15 +167,8 @@ namespace EmulatorLauncher
                     {
                         var uri = new Uri(IniFile.FromFile(rom).GetValue("InternetShortcut", "URL"));
 
-                        if (uri.Scheme == "steam")
-                        {
-                            string steamID = uri.AbsolutePath.Substring(1);
-                            var game = SteamLibrary.GetGameInfo(steamID, Program.AppConfig.GetFullPath("retrobat"));
-                            if (game != null)
-                                _gameLauncher = new SteamGameLauncher(game, uri);
-                        }
-                        else if (launchers.TryGetValue(uri.Scheme, out Func<LauncherGameInfo, Uri, GameLauncher> gameLauncherInstanceBuilder))
-                            _gameLauncher = gameLauncherInstanceBuilder(null, uri);
+                        if (launchers.TryGetValue(uri.Scheme, out Func<Uri, GameLauncher> gameLauncherInstanceBuilder))
+                            _gameLauncher = gameLauncherInstanceBuilder(uri);
                     }
                     catch (Exception ex)
                     {

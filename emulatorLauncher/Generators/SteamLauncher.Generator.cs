@@ -4,7 +4,6 @@ using System.Linq;
 using System.Diagnostics;
 using EmulatorLauncher.Common.Launchers;
 using EmulatorLauncher.Common;
-using EmulatorLauncher.Common.EmulationStation;
 using Microsoft.Win32;
 
 namespace EmulatorLauncher
@@ -15,12 +14,8 @@ namespace EmulatorLauncher
         class SteamGameLauncher : GameLauncher
         {
             private string _steamID;
-            private LauncherGameInfo _game;
-
-            public SteamGameLauncher(LauncherGameInfo game, Uri uri)
+            public SteamGameLauncher(Uri uri)
             {
-                _game = game;
-
                 // Call method to get Steam executable
                 string steamInternalDBPath = Path.Combine(Program.AppConfig.GetFullPath("retrobat"), "system", "tools", "steamexecutables.json");
                 LauncherExe = SteamLibrary.GetSteamGameExecutableName(uri, steamInternalDBPath, out _steamID);
@@ -28,12 +23,10 @@ namespace EmulatorLauncher
 
             public override int RunAndWait(System.Diagnostics.ProcessStartInfo path)
             {
-                if (_game != null && !_game.IsInstalled)
+                bool isInstalled = SteamLibrary.IsGameInstalled(_steamID);
+                if (!isInstalled)
                 {
-                    bool waitForInstall = Program.SystemConfig.getOptBoolean("steam.waitforinstall");
-                    SimpleLogger.Instance.Info("[Steam] 'waitforinstall' feature is set to: " + waitForInstall);
-
-                    if (waitForInstall)
+                    if (Program.SystemConfig.getOptBoolean("steam.waitforinstall"))
                     {
                         if (!WaitForInstall())
                         {
@@ -43,7 +36,7 @@ namespace EmulatorLauncher
                     }
                     else
                     {
-                        Process.Start(new ProcessStartInfo() { FileName = _game.InstallUrl, UseShellExecute = true });
+                        Process.Start(new ProcessStartInfo() { FileName = "steam://install/" + _steamID, UseShellExecute = true });
                         return 0;
                     }
                 }
@@ -202,35 +195,22 @@ namespace EmulatorLauncher
 
                 SimpleLogger.Instance.Info("[INFO] Waiting for game to be installed (AppID: " + _steamID + ").");
 
-                Process.Start(new ProcessStartInfo() { FileName = _game.InstallUrl, UseShellExecute = true });
+                Process.Start(new ProcessStartInfo() { FileName = "steam://install/" + _steamID, UseShellExecute = true });
 
-                // Wait for the game to be installed by checking for the 'Installed' registry key
-                bool isInstalled = false;
+                // Wait for the game to be installed by checking for the manifest file
                 for (int i = 0; i < 3600; i++) // Timeout of 1 hour
                 {
-                    try
+                    if (SteamLibrary.IsGameInstalled(_steamID))
                     {
-                        using (var key = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Valve\\Steam\\Apps\\" + _steamID))
-                        {
-                            if (key != null && key.GetValue("Installed") != null && (int)key.GetValue("Installed") == 1)
-                            {
-                                isInstalled = true;
-                                break;
-                            }
-                        }
+                        SimpleLogger.Instance.Info("[INFO] Game installation finished.");
+                        return true;
                     }
-                    catch { }
+
                     System.Threading.Thread.Sleep(1000); // Check every second
                 }
 
-                if (!isInstalled)
-                {
-                    SimpleLogger.Instance.Info("[INFO] Timeout: Game installation did not complete within the time limit.");
-                    return false;
-                }
-
-                SimpleLogger.Instance.Info("[INFO] Game installation finished.");
-                return true;
+                SimpleLogger.Instance.Info("[INFO] Timeout: Game installation did not complete within the time limit.");
+                return false;
             }
         }
     }
