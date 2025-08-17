@@ -25,7 +25,6 @@ namespace EmulatorLauncher
             {
                 bool isInstalled = SteamLibrary.IsGameInstalled(_steamID, out bool isUpdating);
                 bool waitForInstall = Program.SystemConfig.getOptBoolean("steam.waitforinstall");
-                bool gameLaunched = false;
 
                 if (!isInstalled && !waitForInstall)
                 {
@@ -33,6 +32,9 @@ namespace EmulatorLauncher
                     Process.Start(path);
                     return 0;
                 }
+
+                // Check if steam is already running
+                bool uiExists = Process.GetProcessesByName("steam").Any();
 
                 if ((!isInstalled || isUpdating) && waitForInstall)
                 {
@@ -42,7 +44,6 @@ namespace EmulatorLauncher
                         SimpleLogger.Instance.Info("[Steam] Game is updating. Waiting for update to complete.");
 
                     Process.Start(path);
-                    gameLaunched = true;
 
                     while (true)
                     {
@@ -60,10 +61,10 @@ namespace EmulatorLauncher
                         else if (!isInstalled)
                             SimpleLogger.Instance.Info("[Steam] Game is still installing...");
                     }
+
+                    return MonitorAndExit(uiExists, path, false);
                 }
 
-                // Check if steam is already running
-                bool uiExists = Process.GetProcessesByName("steam").Any();
                 if (uiExists)
                     SimpleLogger.Instance.Info("[INFO] Steam found running already.");
                 else
@@ -77,8 +78,7 @@ namespace EmulatorLauncher
                     KillExistingLauncherExes();
 
                     // Start game
-                    if (!gameLaunched)
-                        Process.Start(path);
+                    Process.Start(path);
 
                     // Get running game process (30 seconds delay 30x1000)
                     var steamGame = GetLauncherExeProcess();
@@ -94,29 +94,34 @@ namespace EmulatorLauncher
                 }
                 else
                 {
-                    // Start game
-                    if (!gameLaunched)
-                        Process.Start(path);
-
-                    if (MonitorGameByRegistry(uiExists))
-                        return 0;
-
-                    SimpleLogger.Instance.Info("[INFO] Registry monitoring failed. Falling back to window focus detection.");
-                    var gameProcess = FindGameProcessByWindowFocus();
-                    if (gameProcess != null)
-                    {
-                        SimpleLogger.Instance.Info("[INFO] Game process '" + gameProcess.ProcessName + "' identified by window focus. Monitoring process.");
-                        gameProcess.WaitForExit();
-                        SimpleLogger.Instance.Info("[INFO] Game process has exited.");
-
-                        // Kill steam if it was not running previously or if option is set in RetroBat
-                        KillSteam(uiExists);
-                    }
-                    else
-                        SimpleLogger.Instance.Info("[INFO] All fallback methods failed. Unable to monitor game process.");
-
-                    return 0;
+                    return MonitorAndExit(uiExists, path);
                 }
+            }
+
+            private int MonitorAndExit(bool uiExists, System.Diagnostics.ProcessStartInfo path, bool launch = true)
+            {
+                // Start game
+                if (launch)
+                    Process.Start(path);
+
+                if (MonitorGameByRegistry(uiExists))
+                    return 0;
+
+                SimpleLogger.Instance.Info("[INFO] Registry monitoring failed. Falling back to window focus detection.");
+                var gameProcess = FindGameProcessByWindowFocus();
+                if (gameProcess != null)
+                {
+                    SimpleLogger.Instance.Info("[INFO] Game process '" + gameProcess.ProcessName + "' identified by window focus. Monitoring process.");
+                    gameProcess.WaitForExit();
+                    SimpleLogger.Instance.Info("[INFO] Game process has exited.");
+
+                    // Kill steam if it was not running previously or if option is set in RetroBat
+                    KillSteam(uiExists);
+                }
+                else
+                    SimpleLogger.Instance.Info("[INFO] All fallback methods failed. Unable to monitor game process.");
+
+                return 0;
             }
 
             private void KillSteam(bool uiExists)
