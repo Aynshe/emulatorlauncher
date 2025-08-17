@@ -30,7 +30,7 @@ namespace EmulatorLauncher
             {
                 if (_game != null && !_game.IsInstalled)
                 {
-                    if (SystemConfig.getOptBoolean("steam.waitforinstall"))
+                    if (Program.SystemConfig.getOptBoolean("steam.waitforinstall"))
                     {
                         if (!WaitForInstall())
                         {
