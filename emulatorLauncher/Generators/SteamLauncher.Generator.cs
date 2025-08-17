@@ -45,6 +45,14 @@ namespace EmulatorLauncher
                             return -1;
                         }
                         _gameWasJustInstalled = true;
+
+                        var game = SteamLibrary.GetInstalledGames().FirstOrDefault(g => g.Id == _steamID);
+                        if (game != null)
+                        {
+                            LauncherExe = game.ExecutableName;
+                            path.FileName = Path.Combine(game.InstallDirectory, game.ExecutableName + ".exe");
+                            path.WorkingDirectory = game.InstallDirectory;
+                        }
                     }
                     else
                     {
