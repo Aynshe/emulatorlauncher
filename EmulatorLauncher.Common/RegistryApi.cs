@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Security.Principal;
 using System.Text;
 
 namespace EmulatorLauncher.Common
@@ -16,7 +17,15 @@ namespace EmulatorLauncher.Common
         public static RegistryKeyEx CurrentUser = new RegistryKeyEx(unchecked((uint)RegistryHive.CurrentUser), true);
         public static RegistryKeyEx ClassesRoot = new RegistryKeyEx(unchecked((uint)RegistryHive.ClassesRoot), true);
         public static RegistryKeyEx Users = new RegistryKeyEx(unchecked((uint)RegistryHive.Users), true);
-        
+
+        public static string GetCurrentUserSid()
+        {
+            try { return WindowsIdentity.GetCurrent().User.Value; }
+            catch { }
+
+            return null;
+        }
+
         private RegistryKeyEx(uint hKey, bool isSystemKey = false)
         {
             _hKey = hKey;
