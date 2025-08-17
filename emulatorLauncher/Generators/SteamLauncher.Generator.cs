@@ -5,6 +5,9 @@ using System.Diagnostics;
 using EmulatorLauncher.Common.Launchers;
 using EmulatorLauncher.Common;
 using Microsoft.Win32;
+using System.Collections.Generic;
+using Steam_Library_Manager.Framework;
+using EmulatorLauncher.Common.EmulationStation;
 
 namespace EmulatorLauncher
 {
@@ -23,7 +26,7 @@ namespace EmulatorLauncher
 
             public override int RunAndWait(System.Diagnostics.ProcessStartInfo path)
             {
-                bool isInstalled = SteamLibrary.IsGameInstalled(_steamID);
+                bool isInstalled = IsGameInstalled(_steamID);
                 if (!isInstalled)
                 {
                     if (Program.SystemConfig.getOptBoolean("steam.waitforinstall"))
@@ -36,6 +39,9 @@ namespace EmulatorLauncher
                     }
                     else
                     {
+                        // Launch the installation and return immediately.
+                        // Note: Steam will still prompt for an installation directory if multiple libraries are set up.
+                        // There is no known way to force a specific library via the steam://install protocol.
                         Process.Start(new ProcessStartInfo() { FileName = "steam://install/" + _steamID, UseShellExecute = true });
                         return 0;
                     }
@@ -197,10 +203,9 @@ namespace EmulatorLauncher
 
                 Process.Start(new ProcessStartInfo() { FileName = "steam://install/" + _steamID, UseShellExecute = true });
 
-                // Wait for the game to be installed by checking for the manifest file
                 for (int i = 0; i < 3600; i++) // Timeout of 1 hour
                 {
-                    if (SteamLibrary.IsGameInstalled(_steamID))
+                    if (IsGameInstalled(_steamID))
                     {
                         SimpleLogger.Instance.Info("[INFO] Game installation finished.");
                         return true;
@@ -211,6 +216,77 @@ namespace EmulatorLauncher
 
                 SimpleLogger.Instance.Info("[INFO] Timeout: Game installation did not complete within the time limit.");
                 return false;
+            }
+
+            private bool IsGameInstalled(string steamID)
+            {
+                string steamPath = GetInstallPath();
+                if (string.IsNullOrEmpty(steamPath))
+                    return false;
+
+                var libraryFolders = GetLibraryFolders();
+                if (libraryFolders == null)
+                    return false;
+
+                foreach (var library in libraryFolders)
+                {
+                    string manifestPath = Path.Combine(library, "steamapps", "appmanifest_" + steamID + ".acf");
+                    if (File.Exists(manifestPath))
+                        return true;
+                }
+
+                return false;
+            }
+
+            private List<string> GetLibraryFolders()
+            {
+                string libraryfoldersPath = Path.Combine(GetInstallPath(), "config", "libraryfolders.vdf");
+
+                try
+                {
+                    var libraryfolders = new KeyValue();
+                    libraryfolders.ReadFileAsText(libraryfoldersPath);
+
+                    var dbs = new List<string>();
+                    foreach (var child in libraryfolders.Children)
+                    {
+                        int val;
+                        if (int.TryParse(child.Name, out val))
+                        {
+                            if (!string.IsNullOrEmpty(child.Value) && Directory.Exists(child.Value))
+                                dbs.Add(child.Value);
+                            else if (child.Children != null && child.Children.Count > 0)
+                            {
+                                var path = child.Children.FirstOrDefault(a => a.Name != null && a.Name.Equals("path", StringComparison.OrdinalIgnoreCase) == true);
+                                if (!string.IsNullOrEmpty(path.Value) && Directory.Exists(path.Value))
+                                    dbs.Add(path.Value);
+                            }
+                        }
+                    }
+                    return dbs;
+                }
+                catch { }
+
+                return new List<string>();
+            }
+
+            private string GetInstallPath()
+            {
+                try
+                {
+                    using (var key = Registry.LocalMachine.OpenSubKey("SOFTWARE\\WOW6432Node\\Valve\\Steam"))
+                    {
+                        if (key != null)
+                        {
+                            var o = key.GetValue("InstallPath");
+                            if (o != null)
+                                return o as string;
+                        }
+                    }
+                }
+                catch { }
+
+                return null;
             }
         }
     }

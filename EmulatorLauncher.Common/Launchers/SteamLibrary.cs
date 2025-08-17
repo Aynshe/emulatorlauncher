@@ -485,42 +485,7 @@ namespace EmulatorLauncher.Common.Launchers
             return game;
         }
 
-        public static bool IsGameInstalled(string steamID)
-        {
-            string steamPath = GetInstallPath();
-            if (string.IsNullOrEmpty(steamPath))
-                return false;
-
-            var libraryFolders = GetLibraryFolders();
-            if (libraryFolders == null)
-                return false;
-
-            foreach (var library in libraryFolders)
-            {
-                string manifestPath = Path.Combine(library, "steamapps", "appmanifest_" + steamID + ".acf");
-                if (File.Exists(manifestPath))
-                    return true;
-            }
-
-            return false;
-        }
-
-        public static List<string> GetLibraryFolders()
-        {
-            string libraryfoldersPath = Path.Combine(GetInstallPath(), "config", "libraryfolders.vdf");
-
-            try
-            {
-                var libraryfolders = new KeyValue();
-                libraryfolders.ReadFileAsText(libraryfoldersPath);
-                return GetLibraryFolders(libraryfolders);
-            }
-            catch { }
-
-            return new List<string>();
-        }
-
-        private static List<string> GetLibraryFolders(KeyValue foldersData)
+        static List<string> GetLibraryFolders(KeyValue foldersData)
         {
             var dbs = new List<string>();
             foreach (var child in foldersData.Children)
