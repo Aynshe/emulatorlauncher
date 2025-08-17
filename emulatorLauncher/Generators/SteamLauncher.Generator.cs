@@ -5,6 +5,7 @@ using System.Diagnostics;
 using EmulatorLauncher.Common.Launchers;
 using EmulatorLauncher.Common;
 using Microsoft.Win32;
+using System.Threading;
 
 namespace EmulatorLauncher
 {
@@ -23,6 +24,41 @@ namespace EmulatorLauncher
 
             public override int RunAndWait(System.Diagnostics.ProcessStartInfo path)
             {
+                bool isInstalled = SteamLibrary.IsGameInstalled(_steamID, out bool isUpdating);
+
+                if (!isInstalled && !Program.SystemConfig.getOptBoolean("steam.waitforinstall"))
+                {
+                    Process.Start(path);
+                    return 0;
+                }
+
+                if ((!isInstalled || isUpdating) && Program.SystemConfig.getOptBoolean("steam.waitforinstall"))
+                {
+                    if (!isInstalled)
+                        SimpleLogger.Instance.Info("[Steam] Game is not installed. Waiting for installation to complete.");
+                    else
+                        SimpleLogger.Instance.Info("[Steam] Game is updating. Waiting for update to complete.");
+
+                    Process.Start(path);
+
+                    while (true)
+                    {
+                        Thread.Sleep(15000);
+                        isInstalled = SteamLibrary.IsGameInstalled(_steamID, out isUpdating);
+
+                        if (isInstalled && !isUpdating)
+                        {
+                            SimpleLogger.Instance.Info("[Steam] Game is now installed and ready to be launched.");
+                            break;
+                        }
+
+                        if (isUpdating)
+                            SimpleLogger.Instance.Info("[Steam] Game is still updating...");
+                        else if (!isInstalled)
+                            SimpleLogger.Instance.Info("[Steam] Game is still installing...");
+                    }
+                }
+
                 // Check if steam is already running
                 bool uiExists = Process.GetProcessesByName("steam").Any();
                 if (uiExists)

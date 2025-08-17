@@ -529,6 +529,67 @@ namespace EmulatorLauncher.Common.Launchers
 
             return null;
         }
+
+        public static bool IsGameInstalled(string steamId, out bool isUpdating)
+        {
+            isUpdating = false;
+
+            string installPath = GetInstallPath();
+            if (string.IsNullOrEmpty(installPath))
+                return false;
+
+            string libraryfoldersPath = Path.Combine(installPath, "config", "libraryfolders.vdf");
+            if (!File.Exists(libraryfoldersPath))
+                return false;
+
+            try
+            {
+                var libraryfolders = new KeyValue();
+                libraryfolders.ReadFileAsText(libraryfoldersPath);
+
+                var folders = GetLibraryFolders(libraryfolders);
+                folders.Add(installPath);
+
+                foreach (var folder in folders.Distinct())
+                {
+                    var libFolder = Path.Combine(folder, "steamapps");
+                    if (Directory.Exists(libFolder))
+                    {
+                        string manifestPath = Path.Combine(libFolder, "appmanifest_" + steamId + ".acf");
+                        if (File.Exists(manifestPath))
+                        {
+                            var kv = new KeyValue();
+                            using (var fs = new FileStream(manifestPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                                kv.ReadAsText(fs);
+
+                            SteamAppStateFlags appState;
+                            if (!string.IsNullOrEmpty(kv["StateFlags"].Value) && Enum.TryParse<SteamAppStateFlags>(kv["StateFlags"].Value, out appState))
+                            {
+                                isUpdating = appState.HasFlag(SteamAppStateFlags.UpdateRunning) ||
+                                             appState.HasFlag(SteamAppStateFlags.UpdatePaused) ||
+                                             appState.HasFlag(SteamAppStateFlags.UpdateStarted) ||
+                                             appState.HasFlag(SteamAppStateFlags.Validating) ||
+                                             appState.HasFlag(SteamAppStateFlags.Preallocating) ||
+                                             appState.HasFlag(SteamAppStateFlags.Downloading) ||
+                                             appState.HasFlag(SteamAppStateFlags.Staging) ||
+                                             appState.HasFlag(SteamAppStateFlags.Committing) ||
+                                             appState.HasFlag(SteamAppStateFlags.UpdateStopping);
+
+                                return appState.HasFlag(SteamAppStateFlags.FullyInstalled);
+                            }
+
+                            return false;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error("[Steam] Error checking if game is installed: " + ex.Message, ex);
+            }
+
+            return false;
+        }
     }
 
 }
