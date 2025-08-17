@@ -4,6 +4,7 @@ using System.Linq;
 using System.Diagnostics;
 using EmulatorLauncher.Common.Launchers;
 using EmulatorLauncher.Common;
+using EmulatorLauncher.Common.EmulationStation;
 using Microsoft.Win32;
 
 namespace EmulatorLauncher
