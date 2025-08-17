@@ -73,7 +73,7 @@ namespace EmulatorLauncher
                     // Start game
                     Process.Start(path);
 
-                    // Get running game process
+                    // Get running game process (30 seconds delay 30x1000)
                     var steamGame = GetLauncherExeProcess(!_gameWasJustInstalled);
 
                     if (steamGame != null)
