@@ -14,9 +14,12 @@ namespace EmulatorLauncher
         class SteamGameLauncher : GameLauncher
         {
             private string _steamID;
+            private Uri _uri;
 
             public SteamGameLauncher(Uri uri)
             {
+                _uri = uri;
+
                 // Call method to get Steam executable
                 string steamInternalDBPath = Path.Combine(Program.AppConfig.GetFullPath("retrobat"), "system", "tools", "steamexecutables.json");
                 LauncherExe = SteamLibrary.GetSteamGameExecutableName(uri, steamInternalDBPath, out _steamID);
@@ -100,7 +103,13 @@ namespace EmulatorLauncher
 
                     if (Program.SystemConfig.isOptSet("steam.waitforinstall") && Program.SystemConfig.getOptBoolean("steam.waitforinstall"))
                     {
-                        if (!MonitorGameInstallation())
+                        if (MonitorGameInstallation())
+                        {
+                            // Re-check for executable now that it's installed
+                            string steamInternalDBPath = Path.Combine(Program.AppConfig.GetFullPath("retrobat"), "system", "tools", "steamexecutables.json");
+                            LauncherExe = SteamLibrary.GetSteamGameExecutableName(_uri, steamInternalDBPath, out _steamID);
+                        }
+                        else
                         {
                             SimpleLogger.Instance.Info("[INFO] Failed to install the game within the time limit.");
                             KillSteam(uiExists);
