@@ -415,7 +415,7 @@ namespace EmulatorLauncher.Common.Launchers
 
                     games.Add(game);
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
 
                 }

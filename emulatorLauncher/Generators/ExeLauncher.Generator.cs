@@ -1,4 +1,5 @@
 ﻿using EmulatorLauncher.Common;
+using EmulatorLauncher.Common.Launchers;
 using EmulatorLauncher.Common.EmulationStation;
 using EmulatorLauncher.Common.FileFormats;
 using EmulatorLauncher.PadToKeyboard;
@@ -69,9 +70,9 @@ namespace EmulatorLauncher
                         string gameId = match.Groups[1].Value;
                         var uri = new Uri($"goggalaxy:{gameId}");
 
-                        if (launchers.TryGetValue(uri.Scheme, out Func<Uri, GameLauncher> gameLauncherInstanceBuilder))
+                        if (launchers.TryGetValue(uri.Scheme, out Func<LauncherGameInfo, Uri, GameLauncher> gameLauncherInstanceBuilder))
                         {
-                            _gameLauncher = gameLauncherInstanceBuilder(uri);
+                            _gameLauncher = gameLauncherInstanceBuilder(null, uri);
                             goto GOGBYPASS;
                         }
                     }
