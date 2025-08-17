@@ -1,4 +1,5 @@
 ﻿using EmulatorLauncher.Common;
+using EmulatorLauncher.Common.Launchers;
 using EmulatorLauncher.Common.EmulationStation;
 using EmulatorLauncher.Common.FileFormats;
 using EmulatorLauncher.PadToKeyboard;
