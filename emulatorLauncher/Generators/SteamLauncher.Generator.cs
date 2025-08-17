@@ -97,6 +97,7 @@ namespace EmulatorLauncher
 
             public override int RunAndWait(ProcessStartInfo path)
             {
+                // Check if steam is already running
                 bool uiExists = Process.GetProcessesByName("steam").Any();
                 if (uiExists)
                     SimpleLogger.Instance.Info("[INFO] Steam found running already.");
@@ -106,6 +107,8 @@ namespace EmulatorLauncher
                 if (!IsGameInstalled())
                 {
                     SimpleLogger.Instance.Info("[INFO] Game is not installed. Triggering installation.");
+
+                    // Start game install
                     Process.Start(path);
 
                     if (Features.IsSupported("steam.waitforinstall") && SystemConfig.isOptSet("steam.waitforinstall") && SystemConfig.getOptBoolean("steam.waitforinstall"))
@@ -116,6 +119,7 @@ namespace EmulatorLauncher
                             KillSteam(uiExists);
                             return -1;
                         }
+
                         SimpleLogger.Instance.Info("[INFO] Installation complete. Game will now be launched.");
                     }
                     else
@@ -131,19 +135,29 @@ namespace EmulatorLauncher
                 if (LauncherExe != null)
                 {
                     SimpleLogger.Instance.Info("[INFO] Executable name : " + LauncherExe);
+
+                    // Kill game if already running
                     KillExistingLauncherExes();
+
+                    // Start game
                     Process.Start(launchPathInfo);
+
+                    // Get running game process (30 seconds delay 30x1000)
                     var steamGame = GetLauncherExeProcess();
                     if (steamGame != null)
                     {
                         steamGame.WaitForExit();
+
+                        // Kill steam if it was not running previously or if option is set in RetroBat
                         KillSteam(uiExists);
                     }
                     return 0;
                 }
                 else
                 {
+                    // Start game
                     Process.Start(launchPathInfo);
+
                     if (MonitorGameByRegistry(uiExists))
                         return 0;
 
@@ -154,6 +168,8 @@ namespace EmulatorLauncher
                         SimpleLogger.Instance.Info("[INFO] Game process '" + gameProcess.ProcessName + "' identified by window focus. Monitoring process.");
                         gameProcess.WaitForExit();
                         SimpleLogger.Instance.Info("[INFO] Game process has exited.");
+
+                        // Kill steam if it was not running previously or if option is set in RetroBat
                         KillSteam(uiExists);
                     }
                     else
