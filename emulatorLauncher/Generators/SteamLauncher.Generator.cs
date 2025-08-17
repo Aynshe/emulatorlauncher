@@ -36,7 +36,7 @@ namespace EmulatorLauncher
                     // Steam will prompt the user for a drive if multiple libraries are set up.
                     Process.Start(new ProcessStartInfo() { FileName = "steam://install/" + _steamID, UseShellExecute = true });
 
-                    if (Program.Features.IsFeatureEnabled("steam.waitforinstall"))
+                    if (Program.SystemConfig.getOptBoolean("steam.waitforinstall"))
                     {
                         SimpleLogger.Instance.Info("[INFO] 'steam.waitforinstall' is enabled. Waiting for installation to complete.");
 
