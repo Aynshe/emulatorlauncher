@@ -785,20 +785,9 @@ namespace EmulatorLauncher
                 }
             }
 
-            protected Process GetLauncherExeProcess(bool useTimeout = true)
+            protected Process GetLauncherExeProcess()
             {
                 Process launcherprocess = null;
-
-                if (!useTimeout)
-                {
-                    SimpleLogger.Instance.Info("[INFO] Waiting indefinitely for game process to start.");
-                    while (launcherprocess == null)
-                    {
-                        launcherprocess = Process.GetProcessesByName(LauncherExe).FirstOrDefault();
-                        Thread.Sleep(1000);
-                    }
-                    return launcherprocess;
-                }
 
                 int waitttime = 30;
                 if (Program.SystemConfig.isOptSet("steam_wait") && !string.IsNullOrEmpty(Program.SystemConfig["steam_wait"]))

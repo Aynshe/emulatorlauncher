@@ -46,13 +46,10 @@ namespace EmulatorLauncher
                         }
                         _gameWasJustInstalled = true;
 
+                        // After installation, find the executable name
                         var game = SteamLibrary.GetInstalledGames().FirstOrDefault(g => g.Id == _steamID);
                         if (game != null)
-                        {
                             LauncherExe = game.ExecutableName;
-                            path.FileName = Path.Combine(game.InstallDirectory, game.ExecutableName + ".exe");
-                            path.WorkingDirectory = game.InstallDirectory;
-                        }
                     }
                     else
                     {
@@ -81,8 +78,22 @@ namespace EmulatorLauncher
                     // Start game
                     Process.Start(path);
 
-                    // Get running game process (30 seconds delay 30x1000)
-                    var steamGame = GetLauncherExeProcess(!_gameWasJustInstalled);
+                    Process steamGame;
+                    if (_gameWasJustInstalled)
+                    {
+                        SimpleLogger.Instance.Info("[INFO] Waiting indefinitely for game process to start after installation.");
+                        steamGame = null;
+                        while (steamGame == null)
+                        {
+                            steamGame = Process.GetProcessesByName(LauncherExe).FirstOrDefault();
+                            System.Threading.Thread.Sleep(1000);
+                        }
+                    }
+                    else
+                    {
+                        // Get running game process (30 seconds delay 30x1000)
+                        steamGame = GetLauncherExeProcess();
+                    }
 
                     if (steamGame != null)
                     {
