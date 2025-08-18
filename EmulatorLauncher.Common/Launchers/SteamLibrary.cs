@@ -135,7 +135,7 @@ namespace EmulatorLauncher.Common.Launchers
                     }
                     catch (Exception ex)
                     {
-                        SimpleLogger.Instance.Error("[Steam] Error calling Steam Web API: " + ex.Message, ex);
+                        SimpleLogger.Instance.Info("[Steam] Steam API call failed. Using local data only. Error: " + ex.Message);
                     }
                 }
             }
