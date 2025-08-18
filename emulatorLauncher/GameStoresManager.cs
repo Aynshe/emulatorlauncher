@@ -1,11 +1,10 @@
-﻿using EmulatorLauncher.Common;
+using EmulatorLauncher.Common;
 using EmulatorLauncher.Common.Launchers;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Documents;
 using System.Windows.Forms;
 
 namespace EmulatorLauncher
@@ -25,7 +24,7 @@ namespace EmulatorLauncher
             Parallel.Invoke(
                () => ImportStore("amazon", AmazonLibrary.GetInstalledGames),
                () => ImportStore("eagames", EaGamesLibrary.GetInstalledGames),
-               () => ImportStore("epic", EpicLibrary.GetInstalledGames),
+               () => ImportStore("epic", () => EpicLibrary.GetAllGames(retrobatPath)),
                () => ImportStore("gog", GogLibrary.GetInstalledGames),
                () => ImportStore("steam", () => SteamLibrary.GetAllGames(retrobatPath)));
         }
@@ -40,11 +39,11 @@ namespace EmulatorLauncher
                 Directory.CreateDirectory(dir);
 
                 var notInstalledDir = Path.Combine(dir, "Not Installed");
-                if (name == "steam")
+                if (name == "steam" || name == "epic")
                     Directory.CreateDirectory(notInstalledDir);
 
                 var files = new HashSet<string>(new[] { "*.url", "*.lnk" }.SelectMany(ext => Directory.GetFiles(dir, ext, SearchOption.TopDirectoryOnly)));
-                var notInstalledFiles = name == "steam" ? new HashSet<string>(new[] { "*.url", "*.lnk" }.SelectMany(ext => Directory.GetFiles(notInstalledDir, ext, SearchOption.TopDirectoryOnly))) : new HashSet<string>();
+                var notInstalledFiles = (name == "steam" || name == "epic") ? new HashSet<string>(new[] { "*.url", "*.lnk" }.SelectMany(ext => Directory.GetFiles(notInstalledDir, ext, SearchOption.TopDirectoryOnly))) : new HashSet<string>();
 
                 dynamic shell = null;
 
@@ -55,7 +54,7 @@ namespace EmulatorLauncher
                         var targetDir = dir;
                         var targetFiles = files;
 
-                        if (name == "steam" && !game.IsInstalled)
+                        if ((name == "steam" || name == "epic") && !game.IsInstalled)
                         {
                             targetDir = notInstalledDir;
                             targetFiles = notInstalledFiles;
@@ -119,7 +118,7 @@ namespace EmulatorLauncher
                     foreach (var file in files)
                         FileTools.TryDeleteFile(file);
 
-                    if (name == "steam")
+                    if (name == "steam" || name == "epic")
                     {
                         foreach (var file in notInstalledFiles)
                             FileTools.TryDeleteFile(file);
