@@ -1,10 +1,10 @@
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net;
+using System.Net.Http;
 using System.Text;
+using System.Threading.Tasks;
+using System.Net;
 
 namespace EmulatorLauncher.Common.Launchers
 {
@@ -17,75 +17,23 @@ namespace EmulatorLauncher.Common.Launchers
         private const string ClientId = "34a02cf8f4414e29b15921876da36f9a";
         private const string ClientSecret = "daafbccc737745039d5256d3e6b86427";
 
+        private static HttpClient _httpClient;
+
         public EpicApi()
         {
-            try
+            if (_httpClient == null)
             {
-                // Force TLS 1.2 for .NET 4.0
-                ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072;
-            }
-            catch (Exception ex)
-            {
-                SimpleLogger.Instance.Error("[EPIC] Failed to set SecurityProtocol: " + ex.Message);
-            }
-        }
-
-        private EpicToken PostTokenRequest(Dictionary<string, string> body)
-        {
-            SimpleLogger.Instance.Info("[EPIC] PostTokenRequest: Starting.");
-            var request = (HttpWebRequest)WebRequest.Create(TokenUrl);
-            request.Method = "POST";
-            request.ContentType = "application/x-www-form-urlencoded";
-            SimpleLogger.Instance.Info("[EPIC] PostTokenRequest: WebRequest created.");
-
-            var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{ClientId}:{ClientSecret}"));
-            request.Headers.Add("Authorization", $"basic {credentials}");
-
-            var postData = string.Join("&", body.Select(kvp => $"{Uri.EscapeDataString(kvp.Key)}={Uri.EscapeDataString(kvp.Value)}"));
-            var data = Encoding.ASCII.GetBytes(postData);
-
-            request.ContentLength = data.Length;
-
-            SimpleLogger.Instance.Info("[EPIC] PostTokenRequest: Getting request stream.");
-            using (var stream = request.GetRequestStream())
-            {
-                stream.Write(data, 0, data.Length);
-            }
-            SimpleLogger.Instance.Info("[EPIC] PostTokenRequest: Request stream written.");
-
-            try
-            {
-                SimpleLogger.Instance.Info("[EPIC] PostTokenRequest: Getting response.");
-                using (var response = (HttpWebResponse)request.GetResponse())
+                try
                 {
-                    SimpleLogger.Instance.Info("[EPIC] PostTokenRequest: Response received with status: " + response.StatusCode);
-                    if (response.StatusCode == HttpStatusCode.OK)
-                    {
-                        using (var reader = new StreamReader(response.GetResponseStream()))
-                        {
-                            var json = reader.ReadToEnd();
-                            SimpleLogger.Instance.Info("[EPIC] PostTokenRequest: Success.");
-                            return JsonConvert.DeserializeObject<EpicToken>(json);
-                        }
-                    }
+                    ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072; // Tls12
                 }
-            }
-            catch (WebException ex)
-            {
-                SimpleLogger.Instance.Error("[EPIC] PostTokenRequest failed with WebException: " + ex.Message);
-                return null;
-            }
-            catch (Exception ex)
-            {
-                SimpleLogger.Instance.Error("[EPIC] PostTokenRequest failed with Exception: " + ex.Message);
-                return null;
-            }
+                catch { }
 
-            SimpleLogger.Instance.Info("[EPIC] PostTokenRequest: Failed with no exception.");
-            return null;
+                _httpClient = new HttpClient();
+            }
         }
 
-        public EpicToken AuthenticateWithAuthorizationCode(string authCode)
+        public async Task<EpicToken> AuthenticateWithAuthorizationCode(string authCode)
         {
             var body = new Dictionary<string, string>
             {
@@ -94,10 +42,10 @@ namespace EmulatorLauncher.Common.Launchers
                 { "token_type", "eg1" }
             };
 
-            return PostTokenRequest(body);
+            return await PostTokenRequest(body);
         }
 
-        public EpicToken AuthenticateWithRefreshToken(string refreshToken)
+        public async Task<EpicToken> AuthenticateWithRefreshToken(string refreshToken)
         {
             var body = new Dictionary<string, string>
             {
@@ -106,33 +54,39 @@ namespace EmulatorLauncher.Common.Launchers
                 { "token_type", "eg1" }
             };
 
-            return PostTokenRequest(body);
+            return await PostTokenRequest(body);
         }
 
-        public List<EpicLibraryItem> GetLibraryItems(string accessToken, string accountId)
+        private async Task<EpicToken> PostTokenRequest(Dictionary<string, string> body)
         {
-            var url = $"{LibraryUrl}?accountIds={accountId}&includeMetadata=true";
-            var request = (HttpWebRequest)WebRequest.Create(url);
-            request.Method = "GET";
+            var request = new HttpRequestMessage(HttpMethod.Post, TokenUrl);
+            request.Content = new FormUrlEncodedContent(body);
+
+            var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{ClientId}:{ClientSecret}"));
+            request.Headers.Add("Authorization", $"basic {credentials}");
+
+            var response = await _httpClient.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                return JsonConvert.DeserializeObject<EpicToken>(json);
+            }
+
+            return null;
+        }
+
+        public async Task<List<EpicLibraryItem>> GetLibraryItems(string accessToken, string accountId)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, $"{LibraryUrl}?accountIds={accountId}&includeMetadata=true");
             request.Headers.Add("Authorization", $"bearer {accessToken}");
 
-            try
+            var response = await _httpClient.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
             {
-                using (var response = (HttpWebResponse)request.GetResponse())
-                {
-                    if (response.StatusCode == HttpStatusCode.OK)
-                    {
-                        using (var reader = new StreamReader(response.GetResponseStream()))
-                        {
-                            var json = reader.ReadToEnd();
-                            return JsonConvert.DeserializeObject<List<EpicLibraryItem>>(json);
-                        }
-                    }
-                }
-            }
-            catch (WebException)
-            {
-                return new List<EpicLibraryItem>();
+                var json = await response.Content.ReadAsStringAsync();
+                return JsonConvert.DeserializeObject<List<EpicLibraryItem>>(json);
             }
 
             return new List<EpicLibraryItem>();
