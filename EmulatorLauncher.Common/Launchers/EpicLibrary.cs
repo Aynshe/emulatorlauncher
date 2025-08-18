@@ -56,7 +56,12 @@ namespace EmulatorLauncher.Common.Launchers
             {
                 string refreshToken = File.ReadAllText(tokenPath).Trim();
                 if (!string.IsNullOrEmpty(refreshToken))
+                {
                     token = api.AuthenticateWithRefreshToken(refreshToken);
+
+                    if (token != null && !string.IsNullOrEmpty(token.RefreshToken))
+                        File.WriteAllText(tokenPath, token.RefreshToken);
+                }
             }
 
             if (token != null && !string.IsNullOrEmpty(token.AccessToken))
