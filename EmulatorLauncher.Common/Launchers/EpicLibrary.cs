@@ -18,48 +18,70 @@ namespace EmulatorLauncher.Common.Launchers
         {
             var allGames = new Dictionary<string, LauncherGameInfo>();
             var apiGames = new List<LauncherGameInfo>();
+            var api = new EpicApi();
+            EpicToken token = null;
 
             string tokenPath = Path.Combine(retrobatPath, "user", "apikey", "epic.token");
+            string codePath = Path.Combine(retrobatPath, "user", "apikey", "epic.code");
 
-            if (File.Exists(tokenPath))
+            if (File.Exists(codePath))
             {
-                var api = new EpicApi();
-                EpicToken token = null;
-
-                string refreshToken = File.ReadAllText(tokenPath).Trim();
-                if (!string.IsNullOrEmpty(refreshToken))
+                try
                 {
-                    token = api.AuthenticateWithRefreshToken(refreshToken);
-                }
-
-                if (token != null && !string.IsNullOrEmpty(token.AccessToken))
-                {
-                    var libraryItems = api.GetLibraryItems(token.AccessToken, token.AccountId);
-                    if (libraryItems != null)
+                    string authCode = File.ReadAllText(codePath).Trim();
+                    if (!string.IsNullOrEmpty(authCode))
                     {
-                        foreach (var item in libraryItems)
+                        token = api.AuthenticateWithAuthorizationCode(authCode);
+                        if (token != null && !string.IsNullOrEmpty(token.RefreshToken))
                         {
-                            if (item.Metadata != null && item.Metadata.MainGameItem != null && item.Id == item.Metadata.MainGameItem.Id)
-                            {
-                                apiGames.Add(new LauncherGameInfo
-                                {
-                                    Id = item.AppName,
-                                    Name = item.Metadata.DisplayName,
-                                    LauncherUrl = string.Format(GameLaunchUrl, item.AppName),
-                                    Launcher = GameLauncherType.Epic
-                                });
-                            }
+                            File.WriteAllText(tokenPath, token.RefreshToken);
+                        }
+                        else
+                        {
+                            SimpleLogger.Instance.Error("[EPIC] Authentication with authorization code failed. The code might be expired or invalid.");
                         }
                     }
                 }
-                else if (!string.IsNullOrEmpty(refreshToken))
+                catch (Exception ex)
                 {
-                     SimpleLogger.Instance.Info("[EPIC] Epic refresh token may be invalid. Run the -linkepic command to refresh it.");
+                    SimpleLogger.Instance.Error("[EPIC] Error authenticating with authorization code: " + ex.Message, ex);
+                }
+                finally
+                {
+                    try { File.Delete(codePath); } catch { }
+                }
+            }
+
+            if (token == null && File.Exists(tokenPath))
+            {
+                string refreshToken = File.ReadAllText(tokenPath).Trim();
+                if (!string.IsNullOrEmpty(refreshToken))
+                    token = api.AuthenticateWithRefreshToken(refreshToken);
+            }
+
+            if (token != null && !string.IsNullOrEmpty(token.AccessToken))
+            {
+                var libraryItems = api.GetLibraryItems(token.AccessToken, token.AccountId);
+                if (libraryItems != null)
+                {
+                    foreach (var item in libraryItems)
+                    {
+                        if (item.Metadata != null && item.Metadata.MainGameItem != null && item.Id == item.Metadata.MainGameItem.Id)
+                        {
+                            apiGames.Add(new LauncherGameInfo
+                            {
+                                Id = item.AppName,
+                                Name = item.Metadata.DisplayName,
+                                LauncherUrl = string.Format(GameLaunchUrl, item.AppName),
+                                Launcher = GameLauncherType.Epic
+                            });
+                        }
+                    }
                 }
             }
             else
             {
-                SimpleLogger.Instance.Info("[EPIC] No epic.token file found. Run the -linkepic command to link your account.");
+                 SimpleLogger.Instance.Info("[EPIC] Could not get an access token. Only installed games will be listed. Provide an authorization code in epic.code to link your account.");
             }
 
             var installedGames = GetInstalledGames(apiGames);

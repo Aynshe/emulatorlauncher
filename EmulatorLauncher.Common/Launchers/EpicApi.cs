@@ -13,7 +13,7 @@ namespace EmulatorLauncher.Common.Launchers
         private const string TokenUrl = "https://account-public-service-prod.ol.epicgames.com/account/api/oauth/token";
         private const string LibraryUrl = "https://library-service.live.use1a.on.epicgames.com/library/api/public/items";
         private const string ClientId = "34a02cf8f4414e29b15921876da36f9a";
-        private const string ClientSecret = "daafbccc737745039d5256d3e6b86427";
+        private const string ClientSecret = "daafbccc737745039dffe53d94fc76cf"; // The correct secret from user's research
 
         public EpicApi()
         {

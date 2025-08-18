@@ -124,7 +124,6 @@
     <Compile Include="Launchers\AmazonLibrary.cs" />
     <Compile Include="Launchers\EpicApi.cs" />
     <Compile Include="Launchers\EpicLibrary.cs" />
-    <Compile Include="Launchers\EpicOAuthClient.cs" />
     <Compile Include="Launchers\LauncherGameInfo.cs" />
     <Compile Include="Launchers\SteamLibrary.cs" />
     <Compile Include="Lightguns\RawLightGun.cs" />
