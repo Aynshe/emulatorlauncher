@@ -118,15 +118,22 @@ namespace EmulatorLauncher.Common.Launchers
             }
             catch { }
 
+            SimpleLogger.Instance.Info("[Steam] Found " + games.Count + " installed games: " + string.Join(", ", games.Select(g => g.Name)));
             return games.ToArray();
         }
 
         public static LauncherGameInfo[] GetAllGames(string retrobatPath)
         {
+            var installedGames = GetInstalledGames(retrobatPath);
+            var ownedGames = GetOwnedGames(retrobatPath);
+
             var allGames = new Dictionary<string, LauncherGameInfo>();
+            var nonInstalledGames = new List<LauncherGameInfo>();
+
+            var installedGameIds = new HashSet<string>(installedGames.Select(g => g.Id));
 
             // First, add installed games. They have more accurate information.
-            foreach (var game in GetInstalledGames(retrobatPath))
+            foreach (var game in installedGames)
             {
                 if (!allGames.ContainsKey(game.Id))
                 {
@@ -135,13 +142,16 @@ namespace EmulatorLauncher.Common.Launchers
             }
 
             // Then, add all other owned games.
-            foreach (var game in GetOwnedGames(retrobatPath))
+            foreach (var game in ownedGames)
             {
                 if (!allGames.ContainsKey(game.Id))
                 {
                     allGames.Add(game.Id, game);
+                    nonInstalledGames.Add(game);
                 }
             }
+
+            SimpleLogger.Instance.Info("[Steam] Found " + nonInstalledGames.Count + " non-installed games: " + string.Join(", ", nonInstalledGames.Select(g => g.Name)));
 
             return allGames.Values.ToArray();
         }
