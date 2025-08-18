@@ -72,12 +72,13 @@ namespace EmulatorLauncher.Common.Launchers
                     {
                         foreach (var item in libraryItems)
                         {
-                            if (item.Metadata != null && item.Metadata.MainGameItem != null && item.CatalogItemId == item.Metadata.MainGameItem.Id)
+                            // Filter out DLCs, etc. A base game seems to have an empty dependencies array. Also filter out UE Marketplace assets.
+                            if (item.Dependencies != null && item.Dependencies.Count == 0 && item.SandboxName != "UE Marketplace")
                             {
                                 apiGames.Add(new LauncherGameInfo
                                 {
                                     Id = item.AppName,
-                                    Name = item.Metadata.DisplayName,
+                                    Name = item.SandboxName,
                                     LauncherUrl = string.Format(GameLaunchUrl, item.AppName),
                                     Launcher = GameLauncherType.Epic
                                 });
@@ -97,9 +98,6 @@ namespace EmulatorLauncher.Common.Launchers
 
             var installedGames = GetInstalledGames(apiGames);
 
-            SimpleLogger.Instance.Info("[EPIC] Found " + apiGames.Count + " games from API.");
-            SimpleLogger.Instance.Info("[EPIC] Found " + installedGames.Length + " installed games.");
-
             foreach (var game in installedGames)
             {
                 if (!allGames.ContainsKey(game.Id))
@@ -110,7 +108,6 @@ namespace EmulatorLauncher.Common.Launchers
             }
 
             var nonInstalledGames = apiGames.Where(g => !allGames.ContainsKey(g.Id)).ToList();
-            SimpleLogger.Instance.Info("[EPIC] Found " + nonInstalledGames.Count + " non-installed games to add.");
 
             foreach (var game in nonInstalledGames)
             {
