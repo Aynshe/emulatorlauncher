@@ -41,7 +41,7 @@ namespace EmulatorLauncher.Common.Launchers
             {
                 SimpleLogger.Instance.Info("[EPIC] No valid token found. Starting interactive login.");
                 var oauthClient = new EpicOAuthClient();
-                string authCode = oauthClient.PerformInteractiveLogin().Result; // .Result is ok here, it's a one-time console-like operation
+                string authCode = oauthClient.PerformInteractiveLogin();
 
                 if (!string.IsNullOrEmpty(authCode))
                 {

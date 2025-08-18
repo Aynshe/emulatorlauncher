@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace EmulatorLauncher.Common.Launchers
 {
@@ -12,7 +11,7 @@ namespace EmulatorLauncher.Common.Launchers
         private const string ClientId = "34a02cf8f4414e29b15921876da36f9a";
         private const string LoginUrl = "https://www.epicgames.com/id/login?redirectUrl={0}&prompt=login&clientId={1}";
 
-        public async Task<string> PerformInteractiveLogin()
+        public string PerformInteractiveLogin()
         {
             string redirectUri = "http://localhost:54321/callback/"; // A port that is unlikely to be in use
             var httpListener = new HttpListener();
@@ -25,8 +24,8 @@ namespace EmulatorLauncher.Common.Launchers
                 string finalLoginUrl = string.Format(LoginUrl, Uri.EscapeDataString(redirectUri), ClientId);
                 Process.Start(finalLoginUrl);
 
-                // Asynchronously wait for a request
-                var context = await httpListener.GetContextAsync();
+                // Synchronously wait for a request
+                var context = httpListener.GetContext();
 
                 // Got a request, stop listening
                 httpListener.Stop();
@@ -37,7 +36,7 @@ namespace EmulatorLauncher.Common.Launchers
                 var buffer = Encoding.UTF8.GetBytes(responseString);
                 response.ContentLength64 = buffer.Length;
                 var responseOutput = response.OutputStream;
-                await responseOutput.WriteAsync(buffer, 0, buffer.Length);
+                responseOutput.Write(buffer, 0, buffer.Length);
                 responseOutput.Close();
 
                 // Extract the authorization code from the query string
