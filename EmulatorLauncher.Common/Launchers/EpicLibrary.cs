@@ -61,22 +61,29 @@ namespace EmulatorLauncher.Common.Launchers
 
             if (token != null && !string.IsNullOrEmpty(token.AccessToken))
             {
-                var libraryItems = api.GetLibraryItems(token.AccessToken, token.AccountId);
-                if (libraryItems != null)
+                try
                 {
-                    foreach (var item in libraryItems)
+                    var libraryItems = api.GetLibraryItems(token.AccessToken, token.AccountId);
+                    if (libraryItems != null)
                     {
-                        if (item.Metadata != null && item.Metadata.MainGameItem != null && item.Id == item.Metadata.MainGameItem.Id)
+                        foreach (var item in libraryItems)
                         {
-                            apiGames.Add(new LauncherGameInfo
+                            if (item.Metadata != null && item.Metadata.MainGameItem != null && item.Id == item.Metadata.MainGameItem.Id)
                             {
-                                Id = item.AppName,
-                                Name = item.Metadata.DisplayName,
-                                LauncherUrl = string.Format(GameLaunchUrl, item.AppName),
-                                Launcher = GameLauncherType.Epic
-                            });
+                                apiGames.Add(new LauncherGameInfo
+                                {
+                                    Id = item.AppName,
+                                    Name = item.Metadata.DisplayName,
+                                    LauncherUrl = string.Format(GameLaunchUrl, item.AppName),
+                                    Launcher = GameLauncherType.Epic
+                                });
+                            }
                         }
                     }
+                }
+                catch (Exception ex)
+                {
+                    SimpleLogger.Instance.Error("[EPIC] Error getting games from API: " + ex.Message, ex);
                 }
             }
             else
