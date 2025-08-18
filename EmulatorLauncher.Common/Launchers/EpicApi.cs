@@ -24,6 +24,33 @@ namespace EmulatorLauncher.Common.Launchers
             _httpClient = new HttpClient();
         }
 
+        public async Task<EpicToken> AuthenticateWithAuthorizationCode(string authCode)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, TokenUrl);
+
+            var body = new Dictionary<string, string>
+            {
+                { "grant_type", "authorization_code" },
+                { "code", authCode },
+                { "token_type", "eg1" }
+            };
+
+            request.Content = new FormUrlEncodedContent(body);
+
+            var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{ClientId}:{ClientSecret}"));
+            request.Headers.Add("Authorization", $"basic {credentials}");
+
+            var response = await _httpClient.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                return JsonConvert.DeserializeObject<EpicToken>(json);
+            }
+
+            return null;
+        }
+
         public async Task<EpicToken> AuthenticateWithRefreshToken(string refreshToken)
         {
             var request = new HttpRequestMessage(HttpMethod.Post, TokenUrl);

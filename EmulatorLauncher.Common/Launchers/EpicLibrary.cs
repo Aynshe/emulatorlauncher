@@ -115,35 +115,64 @@ namespace EmulatorLauncher.Common.Launchers
         {
             var allGames = new Dictionary<string, LauncherGameInfo>();
             var apiGames = new List<LauncherGameInfo>();
+            var api = new EpicApi();
+            EpicToken token = null;
 
             string tokenPath = Path.Combine(retrobatPath, "user", "apikey", "epic.token");
+            string codePath = Path.Combine(retrobatPath, "user", "apikey", "epic.code");
 
-            if (File.Exists(tokenPath))
+            if (File.Exists(codePath))
+            {
+                try
+                {
+                    string authCode = File.ReadAllText(codePath).Trim();
+                    if (!string.IsNullOrEmpty(authCode))
+                    {
+                        token = api.AuthenticateWithAuthorizationCode(authCode).Result;
+                        if (token != null && !string.IsNullOrEmpty(token.RefreshToken))
+                        {
+                            File.WriteAllText(tokenPath, token.RefreshToken);
+                            try { File.Delete(codePath); } catch { }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    SimpleLogger.Instance.Error("[EPIC] Error authenticating with authorization code: " + ex.Message);
+                    try { File.Delete(codePath); } catch { }
+                }
+            }
+
+            if (token == null && File.Exists(tokenPath))
             {
                 try
                 {
                     string refreshToken = File.ReadAllText(tokenPath).Trim();
                     if (!string.IsNullOrEmpty(refreshToken))
-                    {
-                        var api = new EpicApi();
-                        var token = api.AuthenticateWithRefreshToken(refreshToken).Result;
+                        token = api.AuthenticateWithRefreshToken(refreshToken).Result;
+                }
+                catch (Exception ex)
+                {
+                    SimpleLogger.Instance.Error("[EPIC] Error authenticating with refresh token: " + ex.Message);
+                }
+            }
 
-                        if (token != null && !string.IsNullOrEmpty(token.AccessToken))
+            if (token != null && !string.IsNullOrEmpty(token.AccessToken))
+            {
+                try
+                {
+                    var libraryItems = api.GetLibraryItems(token.AccessToken, token.AccountId).Result;
+                    foreach (var item in libraryItems)
+                    {
+                        if (item.Metadata != null && item.Metadata.MainGameItem != null && item.Id == item.Metadata.MainGameItem.Id)
                         {
-                            var libraryItems = api.GetLibraryItems(token.AccessToken, token.AccountId).Result;
-                            foreach (var item in libraryItems)
+                            apiGames.Add(new LauncherGameInfo
                             {
-                                if (item.Metadata != null && item.Metadata.MainGameItem != null && item.Id == item.Metadata.MainGameItem.Id)
-                                {
-                                    apiGames.Add(new LauncherGameInfo
-                                    {
-                                        Id = item.AppName,
-                                        Name = item.Metadata.DisplayName,
-                                        LauncherUrl = string.Format(GameLaunchUrl, item.AppName),
-                                        Launcher = GameLauncherType.Epic
-                                    });
-                                }
-                            }
+                                Id = item.AppName,
+                                Name = item.Metadata.DisplayName,
+                                LauncherUrl = string.Format(GameLaunchUrl, item.AppName),
+                                Launcher = GameLauncherType.Epic
+                            });
                         }
                     }
                 }
