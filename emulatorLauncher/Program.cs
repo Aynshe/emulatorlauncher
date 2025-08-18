@@ -17,27 +17,10 @@ using EmulatorLauncher.Libretro;
 using EmulatorLauncher.Common.Compression.Wrappers;
 using EmulatorLauncher.Common.Launchers;
 
-// XBox
-// -p1index 0 -p1guid 030000005e040000ea02000000007801 -p1name "XBox One S Controller" -p1nbbuttons 11 -p1nbhats 1 -p1nbaxes 6 -system pcengine -emulator libretro -core mednafen_supergrafx -rom "H:\[Emulz]\roms\pcengine\1941 Counter Attack.pce"
-// 8bitdo
-// -p1index 0 -p1guid 030000004c050000c405000000006800 -p1name "PS4 Controller" -p1nbbuttons 16 -p1nbhats 0 -p1nbaxes 6  -system pcengine -emulator libretro -core mednafen_supergrafx -rom "H:\[Emulz]\roms\pcengine\1941 Counter Attack.pce"
-
-// fbinball 8bitdo
-// -p1index 0 -p1guid 030000005e040000e002000000007801 -p1name "Xbox One S Controller" -p1nbbuttons 11 -p1nbhats 1 -p1nbaxes 6  -system fpinball -emulator fpinball -core fpinball -rom "H:\[Emulz]\roms\fpinball\Big Shot (Gottlieb 1973).fpt"
-
-// -p1index 0 -p1guid 030000001008000001e5000000000000 -p1name "usb gamepad           " -p1nbbuttons 10 -p1nbhats 0 -p1nbaxes 2  -system pcengine -emulator libretro -core mednafen_supergrafx -rom "H:\[Emulz]\roms\pcengine\1941 Counter Attack.pce"
-
-/// -p1index 0 -p1guid 030000005e040000e002000000007801 -p1name "Xbox One S Controller" -p1nbbuttons 11 -p1nbhats 1 -p1nbaxes 6  -system gamecube -emulator dolphin -core  -rom "H:\[Emulz]\roms\gamecube\Mario Kart Double Dash.gcz"
-
-/// -p1index 0 -p1guid 03000000b50700000399000000000000 -p1name "2 axis 12 bouton boÃ®tier de commande" -p1nbbuttons 12 -p1nbhats 0 -p1nbaxes 2  -system atari2600 -emulator libretro -core stella -rom "H:\[Emulz]\roms\atari2600\Asteroids (USA).7z"
-/// 
 namespace EmulatorLauncher
 {
     static class Program
     {
-        /// <summary>
-        /// Link between emulator declared in es_systems.cfg and generator to use to launch emulator
-        /// </summary>
         static Dictionary<string, Func<Generator>> generators = new Dictionary<string, Func<Generator>>
         {
             { "3dsen", () => new Nes3dGenerator() },
@@ -186,10 +169,6 @@ namespace EmulatorLauncher
         public static List<Controller> Controllers { get; private set; }
         public static EsFeatures Features { get; private set; }
         public static Game CurrentGame { get; private set; }
-
-        /// <summary>
-        /// Import es_systems.cfg (and overrides) to retrieve emulators
-        /// </summary>
         private static EsSystems _esSystems;
 
         public static EsSystems EsSystems
@@ -202,7 +181,6 @@ namespace EmulatorLauncher
 
                     if (_esSystems != null)
                     {
-                        // Import emulator overrides from additional es_systems_*.cfg files
                         foreach (var file in Directory.GetFiles(Path.Combine(Program.LocalPath, ".emulationstation"), "es_systems_*.cfg"))
                         {
                             try
@@ -230,10 +208,6 @@ namespace EmulatorLauncher
             }
         }
 
-        /// <summary>
-        /// Import es_savestates.cfg
-        /// Used to monitor savestates
-        /// </summary>
         private static EsSaveStates _esSaveStates;
 
         public static EsSaveStates EsSaveStates
@@ -255,10 +229,6 @@ namespace EmulatorLauncher
             }
         }
 
-        /// <summary>
-        /// Import gamesdb.xml
-        /// Used to get information on game (gun, wheel, ...)
-        /// </summary>
         private static GamesDB _gunGames;
 
         public static GamesDB GunGames
@@ -292,9 +262,6 @@ namespace EmulatorLauncher
         [DllImport("user32.dll")]
         public static extern bool SetProcessDPIAware();
 
-        /// <summary>
-        /// Method to show a splash video before a game starts
-        /// </summary>
         static void ShowSplashVideo()
         {
             var loadingScreens = AppConfig.GetFullPath("loadingscreens");
@@ -325,9 +292,6 @@ namespace EmulatorLauncher
            SplashVideo.Start(videoPath, 5000);           
         }
 
-        /// <summary>
-        /// The main entry point for the application.
-        /// </summary>
         [STAThread]
         static void Main(string[] args)
         {
@@ -336,8 +300,6 @@ namespace EmulatorLauncher
             if (args.Length == 0)
                 return;
 
-
-            // Used by XInputDevice.GetDevices
             if (args.Length == 2 && args[0] == "-queryxinputinfo")
             {
                 var all = XInputDevice.GetDevices(true);
@@ -358,6 +320,40 @@ namespace EmulatorLauncher
             AppConfig = ConfigFile.FromFile(Path.Combine(LocalPath, "emulatorLauncher.cfg"));
             AppConfig.ImportOverrides(ConfigFile.FromArguments(args));
 
+            if (args.Any(a => "-linkepic".Equals(a, StringComparison.InvariantCultureIgnoreCase)))
+            {
+                var retrobatPath = AppConfig.GetFullPath("retrobat");
+                var oauthClient = new EpicOAuthClient();
+                string authCode = oauthClient.PerformInteractiveLogin();
+
+                if (!string.IsNullOrEmpty(authCode))
+                {
+                    var api = new EpicApi();
+                    var token = api.AuthenticateWithAuthorizationCode(authCode);
+                    if (token != null && !string.IsNullOrEmpty(token.RefreshToken))
+                    {
+                        string tokenPath = Path.Combine(retrobatPath, "user", "apikey", "epic.token");
+                        File.WriteAllText(tokenPath, token.RefreshToken);
+                        MessageBox.Show("Epic Games account successfully linked.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    else
+                    {
+                        MessageBox.Show("Failed to exchange authorization code for a token. The code may be invalid or expired.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+                else
+                {
+                    MessageBox.Show("Interactive login failed to return an authorization code.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                return;
+            }
+
+            if (args.Any(a => "-updatestores".Equals(a, StringComparison.InvariantCultureIgnoreCase)))
+            {
+                GameStoresManager.UpdateGames();
+                return;
+            }
+
             SimpleLogger.Instance.Info("[Startup] Loading ES settings.");
             SystemConfig = ConfigFile.LoadEmulationStationSettings(Path.Combine(Program.AppConfig.GetFullPath("home"), "es_settings.cfg"));
             SystemConfig.ImportOverrides(ConfigFile.FromArguments(args));
@@ -366,7 +362,6 @@ namespace EmulatorLauncher
             SystemConfig.ImportOverrides(SystemConfig.LoadAll(SystemConfig["system"] + "[\"" + Path.GetFileName(SystemConfig["rom"]) + "\"]"));
             SystemConfig.ImportOverrides(ConfigFile.FromArguments(args));
 
-            // Log Retrobat version && emulatorlauncher version
             string rbVersionPath = Path.Combine(Program.AppConfig.GetFullPath("retrobat"), "system", "version.info");
             string emulatorlauncherExePath = Path.Combine(Program.AppConfig.GetFullPath("retrobat"), "emulationstation", "emulatorlauncher.exe");
 
@@ -385,30 +380,17 @@ namespace EmulatorLauncher
                     SimpleLogger.Instance.Info("[Startup] EmulatorLauncher.exe version : " + lastModifiedDate.ToString());
             }
 
-            // Automatically switch on lightgun if -lightgun is passed and not disabled in the config (except for wii where we do not want to switch on with real wiimote)
             if (!SystemConfig.isOptSet("use_guns") && args.Any(a => a == "-lightgun") && SystemConfig["system"] != "wii")
             {
                 SystemConfig["use_guns"] = "true";
                 SimpleLogger.Instance.Info("[GUNS] Lightgun game : setting default lightun value to true.");
             }
 
-            /* for later wheels
-            if (!SystemConfig.isOptSet("use_wheel") && args.Any(a => a == "-wheel"))
-                SystemConfig["use_wheel"] = "true";*/
-
-            // Get shaders to apply to the game
             ImportShaderOverrides();
 
-            // Check consistance of path
             string rbPath = AppConfig.GetFullPath("retrobat");
 
             #region arguments
-            if (args.Any(a => "-updatestores".Equals(a, StringComparison.InvariantCultureIgnoreCase)))
-            {
-                GameStoresManager.UpdateGames();
-                return;
-            }
-
             if (args.Any(a => "-resetusbcontrollers".Equals(a, StringComparison.InvariantCultureIgnoreCase)))
             {
                 bool elevated = WindowsIdentity.GetCurrent().Owner.IsWellKnown(WellKnownSidType.BuiltinAdministratorsSid);
@@ -437,7 +419,6 @@ namespace EmulatorLauncher
                         }
                     }
                 }
-
                 return;
             }
 
@@ -470,7 +451,6 @@ namespace EmulatorLauncher
                     File.WriteAllText(fn, MameVersionDetector.ListAllGames(mamePath, false));
                     Process.Start(fn);
                 }
-             
                 return;
             }
 
@@ -484,7 +464,6 @@ namespace EmulatorLauncher
                     File.WriteAllText(fn, MameVersionDetector.CheckMame(mamePath));
                     Process.Start(fn);
                 }
-
                 return;
             }
 
@@ -498,7 +477,6 @@ namespace EmulatorLauncher
                     File.WriteAllText(fn, MameVersionDetector.ListAllGames(mamePath, true));
                     Process.Start(fn);
                 }
-
                 return;
             }
 
@@ -512,10 +490,8 @@ namespace EmulatorLauncher
                     File.WriteAllText(fn, MameVersionDetector.CheckFbNeo(mamePath));
                     Process.Start(fn);
                 }
-
                 return;
             }
-
 
             if (args.Any(a => "-makeiso".Equals(a, StringComparison.InvariantCultureIgnoreCase)))
             {
@@ -533,7 +509,6 @@ namespace EmulatorLauncher
             {
                 using (var frm = new InstallerFrm())
                     frm.UpdateAll();
-
                 return;
             }
 
@@ -543,12 +518,10 @@ namespace EmulatorLauncher
                     Installer.InstallAllAndCollect(Path.Combine(Path.GetTempPath(), "emulators"));
                 else
                     Installer.CollectVersions();
-
                 return;
             }
             #endregion
 
-            // Check rom is defined and exists
             if (!SystemConfig.isOptSet("rom"))
             {
                 SimpleLogger.Instance.Error("[Error] rom not set");
@@ -563,7 +536,6 @@ namespace EmulatorLauncher
                 return;
             }
 
-            // System, emulator and core
             if (!SystemConfig.isOptSet("system"))
             {
                 SimpleLogger.Instance.Error("[Error] system not set");
@@ -580,21 +552,18 @@ namespace EmulatorLauncher
             if (string.IsNullOrEmpty(SystemConfig["emulator"]))
                 SystemConfig["emulator"] = SystemConfig["system"];
 
-            // Log local version
             try
             {
                 Installer localInstaller = Installer.GetInstaller(null, true);
                 if (localInstaller != null)
                 {
                     string localVersion = localInstaller.GetInstalledVersion(true);
-
                     if (localVersion != null)
                         SimpleLogger.Instance.Info("[Startup] Emulator version: " + localVersion);
                 }
             }
             catch { SimpleLogger.Instance.Error("[Startup] Error while getting local version"); }
 
-            // Game info
             if (SystemConfig.isOptSet("gameinfo") && File.Exists(SystemConfig.GetFullPath("gameinfo")))
             {
                 var gamelist = GameList.Load(SystemConfig.GetFullPath("gameinfo"));
@@ -628,7 +597,6 @@ namespace EmulatorLauncher
                 }
             }
 
-            // Check and delete es-update.cmd and es-checkversion.cmd
             string esUpdateCmd = Path.Combine(Program.LocalPath, "es-update.cmd");
             string esCheckVersionCmd = Path.Combine(Program.LocalPath, "es-checkversion.cmd");
 
@@ -643,30 +611,23 @@ namespace EmulatorLauncher
                 FileTools.TryDeleteFile(esCheckVersionCmd);
             }
 
-            // Get Generator to use based on emulator or system if none found
             Generator generator = generators.Where(g => g.Key == SystemConfig["emulator"]).Select(g => g.Value()).FirstOrDefault();
             if (generator == null && !string.IsNullOrEmpty(SystemConfig["emulator"]) && SystemConfig["emulator"].StartsWith("lr-"))
                 generator = new LibRetroGenerator();
             if (generator == null)
                 generator = generators.Where(g => g.Key == SystemConfig["system"]).Select(g => g.Value()).FirstOrDefault();
 
-            // Load controller configuration from arguments passed by emulationstation
             LoadControllerConfiguration(args);
 
-            // Splash video
             if (generator != null)
             {
                 ShowSplashVideo();
-                //System.Threading.Thread.Sleep(5000);
-                //return;
             }
 
-            // Check if emulator is installed. Download & Install it if necessary. Propose update if available.
             Installer installer = Installer.GetInstaller();
             if (installer != null)
             {
                 bool updatesEnabled = !SystemConfig.isOptSet("updates.enabled") || SystemConfig.getOptBoolean("updates.enabled");
-
                 if (!updatesEnabled)
                     SimpleLogger.Instance.Info("[Startup] Updates not enabled, not looking for updates.");
 
@@ -679,7 +640,6 @@ namespace EmulatorLauncher
                 }
             }
 
-            // Load features, run the generator to configure and set up command lines, start emulator process and cleanup after emulator process ends
             if (generator != null)
             {
                 SimpleLogger.Instance.Info("[Generator] Using " + generator.GetType().Name);
@@ -690,7 +650,7 @@ namespace EmulatorLauncher
                 }
                 catch (Exception ex)
                 {                    
-                    WriteCustomErrorFile("[Error] es_features.cfg is invalid :\r\n" + ex.Message); // Delete custom err
+                    WriteCustomErrorFile("[Error] es_features.cfg is invalid :\r\n" + ex.Message);
                     Environment.ExitCode = (int)ExitCodes.CustomError;
                     return;
                 }
@@ -701,7 +661,6 @@ namespace EmulatorLauncher
                 using (var screenResolution = ScreenResolution.Parse(SystemConfig["videomode"]))
                 {
                     ProcessStartInfo path = null;
-
                     try
                     {
                         path = generator.Generate(SystemConfig["system"], SystemConfig["emulator"], SystemConfig["core"], SystemConfig["rom"], null, screenResolution);
@@ -709,7 +668,6 @@ namespace EmulatorLauncher
                     catch (Exception ex)
                     {
                         generator.Cleanup();
-                        
                         Program.WriteCustomErrorFile(ex.Message);
                         Environment.ExitCode = (int) ExitCodes.CustomError;
                         SimpleLogger.Instance.Error("[Generator] Exception : " + ex.Message, ex);
@@ -719,7 +677,6 @@ namespace EmulatorLauncher
                     if (path != null)
                     {
                         path.UseShellExecute = true;
-
                         if (screenResolution != null && generator.DependsOnDesktopResolution)
                             screenResolution.Apply();
 
@@ -745,7 +702,6 @@ namespace EmulatorLauncher
                             if (exitCode != 0 && !joy.ProcessKilled)
                                 Environment.ExitCode = (int)ExitCodes.EmulatorExitedUnexpectedly;
                         }
-
                         generator.RestoreFiles();
                     }
                     else
@@ -754,7 +710,6 @@ namespace EmulatorLauncher
                         Environment.ExitCode = (int) generator.ExitCode;
                     }
                 }
-
                 generator.Cleanup();
             }
             else
@@ -775,7 +730,6 @@ namespace EmulatorLauncher
             else
             {
                 SimpleLogger.Instance.Error("[CurrentDomain] Unhandled exception : " + ex.Message, ex);
-
                 if (e.IsTerminating)
                 {
                     Program.WriteCustomErrorFile(ex.Message);
@@ -793,23 +747,17 @@ namespace EmulatorLauncher
             {
                 var core = SystemConfig["core"];
                 var system = SystemConfig["system"];
-
                 string systemMapping = "";
-
                 if (!string.IsNullOrEmpty(core))
                 {
                     systemMapping = Path.Combine(Program.LocalPath, ".emulationstation", "padtokey", system + "." + core + ".keys");
-
                     if (!File.Exists(systemMapping))
                         systemMapping = Path.Combine(Program.AppConfig.GetFullPath("padtokey"), system + "." + core + ".keys");
                 }
-
                 if (!File.Exists(systemMapping))
                     systemMapping = Path.Combine(Program.LocalPath, ".emulationstation", "padtokey", system + ".keys");
-
                 if (!File.Exists(systemMapping))
                     systemMapping = Path.Combine(Program.AppConfig.GetFullPath("padtokey"), system + ".keys");
-
                 if (File.Exists(systemMapping))
                     gameMapping = EvMapyKeysFile.TryLoad(systemMapping);
             }
@@ -819,9 +767,7 @@ namespace EmulatorLauncher
 
             PadToKeyApp app = new PadToKeyApp();
             app.Name = Path.GetFileNameWithoutExtension(path.FileName).ToLower();
-
             int playerIndex = 0;
-
             foreach (var player in gameMapping)
             {
                 if (player == null)
@@ -831,7 +777,6 @@ namespace EmulatorLauncher
                 }
 
                 var controller = Program.Controllers.FirstOrDefault(c => c.PlayerIndex == playerIndex + 1);
-
                 foreach (var action in player)
                 {
                     if (action.type == "mouse")
@@ -846,7 +791,6 @@ namespace EmulatorLauncher
                             mouseInput.Type = PadToKeyType.Mouse;
                             mouseInput.Code = "X";
                             app.Input.Add(mouseInput);
-
                             mouseInput = new PadToKeyInput();
                             mouseInput.Name = InputKey.joystick1up;
                             mouseInput.Type = PadToKeyType.Mouse;
@@ -867,7 +811,6 @@ namespace EmulatorLauncher
                             mouseInput.Code = "Y";
                             app.Input.Add(mouseInput);
                         }
-                        
                         continue;
                     }
 
@@ -885,7 +828,6 @@ namespace EmulatorLauncher
                     };
 
                     bool custom = false;
-
                     foreach (var target in action.Targets)
                     {
                         if (target == "(%{KILL})" || target == "%{KILL}")
@@ -915,11 +857,9 @@ namespace EmulatorLauncher
 
                         input.SetScanCode((uint)sc);
                     }
-
                     if (input.ScanCodes.Length > 0 || custom)
                         app.Input.Add(input);
                 }
-
                 playerIndex++;
             }
 
@@ -931,7 +871,6 @@ namespace EmulatorLauncher
                 var existingApp = mapping.Applications.FirstOrDefault(a => a.Name.Equals(app.Name, StringComparison.InvariantCultureIgnoreCase));
                 if (existingApp != null)
                 {
-                    // Merge with existing by replacing inputs
                     foreach (var input in app.Input)
                     {
                         existingApp.Input.RemoveAll(i => i.Name == input.Name);
@@ -941,7 +880,6 @@ namespace EmulatorLauncher
                 else
                     mapping.Applications.Add(app);
             }
-
             return mapping;
         }
 
@@ -1006,7 +944,6 @@ namespace EmulatorLauncher
                         if (pi.Config == null)
                             pi.Config = inputConfig.FirstOrDefault(c => c.DeviceName == pi.Name);
                     }
-
                     Controllers.RemoveAll(c => c.Config == null);
 
                     if (!Controllers.Any() || SystemConfig.getOptBoolean("use_guns") || Misc.HasWiimoteGun())
@@ -1021,14 +958,12 @@ namespace EmulatorLauncher
                         }
                     }
                 }
-
                 return inputConfig;
             }
             catch (Exception ex)
             {
                 SimpleLogger.Instance.Error("[LoadControllerConfiguration] Failed " + ex.Message, ex);
             }
-
             return null;
         }
         
@@ -1046,17 +981,10 @@ namespace EmulatorLauncher
             }
         }
 
-        /// <summary>
-        /// To use with Environment.ExitCode = (int)ExitCodes.CustomError;
-        /// Deletes the file if message == null
-        /// </summary>
-        /// <param name="message"></param>
         public static void WriteCustomErrorFile(string message)
         {
             SimpleLogger.Instance.Error("[Error] " + message);
-
             string fn = Path.Combine(Installer.GetTempPath(), "launch_error.log");
-
             try
             {
                 if (string.IsNullOrEmpty(message))
@@ -1101,7 +1029,6 @@ namespace EmulatorLauncher
             var openWith = typeof(Program).Assembly.Location;
             shellKey.CreateSubKey("Convert to ISO").CreateSubKey("command").SetValue("", "\"" + openWith + "\"" + " -makeiso \"%1\"");
             shellKey.Close();
-
             key.Close();
         }
 
@@ -1121,7 +1048,6 @@ namespace EmulatorLauncher
             var openWith = typeof(Program).Assembly.Location;
             shellKey.CreateSubKey("Extract as folder").CreateSubKey("command").SetValue("", "\"" + openWith + "\"" + " -extract \"%1\"");
             shellKey.Close();
-
             key.Close();
         }
 
