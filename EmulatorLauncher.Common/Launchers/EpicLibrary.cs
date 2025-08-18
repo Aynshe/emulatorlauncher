@@ -58,7 +58,6 @@ namespace EmulatorLauncher.Common.Launchers
                 if (!string.IsNullOrEmpty(refreshToken))
                 {
                     token = api.AuthenticateWithRefreshToken(refreshToken);
-
                     if (token != null && !string.IsNullOrEmpty(token.RefreshToken))
                         File.WriteAllText(tokenPath, token.RefreshToken);
                 }
@@ -73,7 +72,7 @@ namespace EmulatorLauncher.Common.Launchers
                     {
                         foreach (var item in libraryItems)
                         {
-                            if (item.Metadata != null && item.Metadata.MainGameItem != null && item.Id == item.Metadata.MainGameItem.Id)
+                            if (item.Metadata != null && item.Metadata.MainGameItem != null && item.CatalogItemId == item.Metadata.MainGameItem.Id)
                             {
                                 apiGames.Add(new LauncherGameInfo
                                 {
@@ -93,10 +92,14 @@ namespace EmulatorLauncher.Common.Launchers
             }
             else
             {
-                 SimpleLogger.Instance.Info("[EPIC] Could not get an access token. Only installed games will be listed. Provide an authorization code in epic.code to link your account.");
+                 SimpleLogger.Instance.Info("[EPIC] Could not get an access token. Only installed games will be listed.");
             }
 
             var installedGames = GetInstalledGames(apiGames);
+
+            SimpleLogger.Instance.Info("[EPIC] Found " + apiGames.Count + " games from API.");
+            SimpleLogger.Instance.Info("[EPIC] Found " + installedGames.Length + " installed games.");
+
             foreach (var game in installedGames)
             {
                 if (!allGames.ContainsKey(game.Id))
@@ -107,6 +110,8 @@ namespace EmulatorLauncher.Common.Launchers
             }
 
             var nonInstalledGames = apiGames.Where(g => !allGames.ContainsKey(g.Id)).ToList();
+            SimpleLogger.Instance.Info("[EPIC] Found " + nonInstalledGames.Count + " non-installed games to add.");
+
             foreach (var game in nonInstalledGames)
             {
                 if (!allGames.ContainsKey(game.Id))

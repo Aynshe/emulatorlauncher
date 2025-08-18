@@ -76,8 +76,6 @@ namespace EmulatorLauncher.Common.Launchers
                         using (var reader = new StreamReader(response.GetResponseStream()))
                         {
                             string json = reader.ReadToEnd();
-                            SimpleLogger.Instance.Info("[EPIC] Library response: " + json);
-                            // The response is an object with a "records" property which is the array of games
                             var result = JsonConvert.DeserializeObject<EpicLibraryResponse>(json);
                             return result?.Records ?? new List<EpicLibraryItem>();
                         }
@@ -118,8 +116,8 @@ namespace EmulatorLauncher.Common.Launchers
     {
         [JsonProperty("id")] public string Id { get; set; }
         [JsonProperty("namespace")] public string Namespace { get; set; }
-        [JsonProperty("name")] public string Name { get; set; }
-        [JsonProperty("app_name")] public string AppName { get; set; }
+        [JsonProperty("catalogItemId")] public string CatalogItemId { get; set; }
+        [JsonProperty("appName")] public string AppName { get; set; }
         [JsonProperty("metadata")] public EpicGameMetadata Metadata { get; set; }
     }
 
