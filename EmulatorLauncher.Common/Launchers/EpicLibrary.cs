@@ -5,8 +5,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.Serialization;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace EmulatorLauncher.Common.Launchers
 {
@@ -23,13 +23,12 @@ namespace EmulatorLauncher.Common.Launchers
 
             string tokenPath = Path.Combine(retrobatPath, "user", "apikey", "epic.token");
 
-            // 1. Try to authenticate using the refresh token
             if (File.Exists(tokenPath))
             {
                 string refreshToken = File.ReadAllText(tokenPath).Trim();
                 if (!string.IsNullOrEmpty(refreshToken))
                 {
-                    token = api.AuthenticateWithRefreshToken(refreshToken).Result;
+                    token = api.AuthenticateWithRefreshToken(refreshToken);
                     if (token == null)
                     {
                         SimpleLogger.Instance.Info("[EPIC] Refresh token is invalid, deleting it.");
@@ -38,36 +37,30 @@ namespace EmulatorLauncher.Common.Launchers
                 }
             }
 
-            // 2. If no token, try interactive login
             if (token == null)
             {
                 SimpleLogger.Instance.Info("[EPIC] No valid token found. Starting interactive login.");
                 var oauthClient = new EpicOAuthClient();
-                string authCode = oauthClient.PerformInteractiveLogin().Result;
+                string authCode = oauthClient.PerformInteractiveLogin().Result; // .Result is ok here, it's a one-time console-like operation
 
                 if (!string.IsNullOrEmpty(authCode))
                 {
-                    token = api.AuthenticateWithAuthorizationCode(authCode).Result;
+                    token = api.AuthenticateWithAuthorizationCode(authCode);
                     if (token != null && !string.IsNullOrEmpty(token.RefreshToken))
                     {
                         File.WriteAllText(tokenPath, token.RefreshToken);
                         SimpleLogger.Instance.Info("[EPIC] Successfully authenticated and saved new refresh token.");
                     }
                     else
-                    {
                         SimpleLogger.Instance.Error("[EPIC] Failed to exchange authorization code for a token.");
-                    }
                 }
                 else
-                {
                     SimpleLogger.Instance.Error("[EPIC] Interactive login did not return an authorization code.");
-                }
             }
 
-            // 3. If we have a token, get games
             if (token != null && !string.IsNullOrEmpty(token.AccessToken))
             {
-                var libraryItems = api.GetLibraryItems(token.AccessToken, token.AccountId).Result;
+                var libraryItems = api.GetLibraryItems(token.AccessToken, token.AccountId);
                 if (libraryItems != null)
                 {
                     foreach (var item in libraryItems)
@@ -90,18 +83,14 @@ namespace EmulatorLauncher.Common.Launchers
             foreach (var game in installedGames)
             {
                 if (!allGames.ContainsKey(game.Id))
-                {
                     allGames.Add(game.Id, game);
-                }
             }
 
             var nonInstalledGames = apiGames.Where(g => !allGames.ContainsKey(g.Id)).ToList();
             foreach (var game in nonInstalledGames)
             {
                 if (!allGames.ContainsKey(game.Id))
-                {
                     allGames.Add(game.Id, game);
-                }
             }
 
             return allGames.Values.ToArray();
@@ -178,19 +167,12 @@ namespace EmulatorLauncher.Common.Launchers
             if (modSdkMetadataDir != null)
             {
                 string manifestPath = modSdkMetadataDir.ToString();
-
                 string gameExecutable = null;
-
                 if (Directory.Exists(manifestPath))
                 {
                     foreach (var manifest in GetInstalledManifests())
                     {
-                        if (shorturl.Equals(manifest.AppName))
-                        {
-                            gameExecutable = manifest.LaunchExecutable;
-                            break;
-                        }
-                        else if (shorturl.Equals(manifest.MainGameAppName))
+                        if (shorturl.Equals(manifest.AppName) || shorturl.Equals(manifest.MainGameAppName))
                         {
                             gameExecutable = manifest.LaunchExecutable;
                             break;
@@ -254,7 +236,6 @@ namespace EmulatorLauncher.Common.Launchers
                 foreach (var manFile in Directory.GetFiles(installListPath, "*.item"))
                 {
                     EpicGame manifest = null;
-
                     try { manifest = JsonSerializer.DeserializeString<EpicGame>(File.ReadAllText(manFile)); }
                     catch { }
 
@@ -293,22 +274,16 @@ namespace EmulatorLauncher.Common.Launchers.Epic
     {
         [DataMember]
         public string AppName { get; set; }
-
         [DataMember]
         public string CatalogNamespace { get; set; }
-
         [DataMember]
         public string LaunchExecutable { get; set; }
-
         [DataMember]
         public string InstallLocation;
-
         [DataMember]
         public string MainGameAppName;
-
         [DataMember]
         public string DisplayName;
-
         [DataMember]
         public List<string> AppCategories { get; set; }
     }
