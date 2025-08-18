@@ -24,7 +24,10 @@ namespace EmulatorLauncher.Common.Launchers
                 // Force TLS 1.2 for .NET 4.0
                 ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error("[EPIC] Failed to set SecurityProtocol: " + ex.Message);
+            }
         }
 
         private EpicToken PostTokenRequest(Dictionary<string, string> body)

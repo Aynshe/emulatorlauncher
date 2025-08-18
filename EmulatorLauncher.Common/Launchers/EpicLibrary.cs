@@ -120,6 +120,8 @@ namespace EmulatorLauncher.Common.Launchers
 
         public static LauncherGameInfo[] GetAllGames(string retrobatPath)
         {
+            SimpleLogger.Instance.Info("[EPIC] Starting to fetch all games.");
+
             var allGames = new Dictionary<string, LauncherGameInfo>();
             var apiGames = new List<LauncherGameInfo>();
             var api = new EpicApi();
