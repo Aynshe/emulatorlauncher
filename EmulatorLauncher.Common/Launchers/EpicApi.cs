@@ -63,7 +63,7 @@ namespace EmulatorLauncher.Common.Launchers
 
         public List<EpicLibraryItem> GetLibraryItems(string accessToken, string accountId)
         {
-            var url = $"{LibraryUrl}?accountIds={accountId}&includeMetadata=false"; // Metadata seems to not be in the response, so set to false
+            var url = $"{LibraryUrl}?accountIds={accountId}&includeMetadata=true"; // includeMetadata is required for some fields
             var request = (HttpWebRequest)WebRequest.Create(url);
             request.Method = "GET";
             request.Headers.Add("Authorization", $"bearer {accessToken}");
@@ -76,8 +76,9 @@ namespace EmulatorLauncher.Common.Launchers
                         using (var reader = new StreamReader(response.GetResponseStream()))
                         {
                             string json = reader.ReadToEnd();
-                            var result = JsonConvert.DeserializeObject<List<EpicLibraryItem>>(json);
-                            return result ?? new List<EpicLibraryItem>();
+                            // The user log shows the response is an object with a "records" property which is the array of games
+                            var result = JsonConvert.DeserializeObject<EpicLibraryResponse>(json);
+                            return result?.Records ?? new List<EpicLibraryItem>();
                         }
                     }
                 }
@@ -89,6 +90,12 @@ namespace EmulatorLauncher.Common.Launchers
             }
             return new List<EpicLibraryItem>();
         }
+    }
+
+    public class EpicLibraryResponse
+    {
+        [JsonProperty("records")]
+        public List<EpicLibraryItem> Records { get; set; }
     }
 
     public class EpicToken
@@ -113,5 +120,17 @@ namespace EmulatorLauncher.Common.Launchers
         [JsonProperty("appName")] public string AppName { get; set; }
         [JsonProperty("sandboxName")] public string SandboxName { get; set; }
         [JsonProperty("dependencies")] public List<object> Dependencies { get; set; }
+        [JsonProperty("metadata")] public EpicGameMetadata Metadata { get; set; }
+    }
+
+    public class EpicGameMetadata
+    {
+        [JsonProperty("mainGameItem")] public EpicMainGameItem MainGameItem { get; set; }
+        [JsonProperty("displayName")] public string DisplayName { get; set; }
+    }
+
+    public class EpicMainGameItem
+    {
+        [JsonProperty("id")] public string Id { get; set; }
     }
 }

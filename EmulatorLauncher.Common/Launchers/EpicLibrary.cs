@@ -18,67 +18,64 @@ namespace EmulatorLauncher.Common.Launchers
         {
             var allGames = new Dictionary<string, LauncherGameInfo>();
             var apiGames = new List<LauncherGameInfo>();
-            var api = new EpicApi();
-            EpicToken token = null;
 
-            string tokenPath = Path.Combine(retrobatPath, "user", "apikey", "epic.token");
-            string codePath = Path.Combine(retrobatPath, "user", "apikey", "epic.code");
-
-            if (File.Exists(codePath))
+            try
             {
-                try
+                var api = new EpicApi();
+                EpicToken token = null;
+
+                string tokenPath = Path.Combine(retrobatPath, "user", "apikey", "epic.token");
+                string codePath = Path.Combine(retrobatPath, "user", "apikey", "epic.code");
+
+                if (File.Exists(codePath))
                 {
-                    string authCode = File.ReadAllText(codePath).Trim();
-                    if (!string.IsNullOrEmpty(authCode))
+                    try
                     {
-                        token = api.AuthenticateWithAuthorizationCode(authCode);
-                        if (token != null && !string.IsNullOrEmpty(token.RefreshToken))
+                        string authCode = File.ReadAllText(codePath).Trim();
+                        if (!string.IsNullOrEmpty(authCode))
                         {
-                            File.WriteAllText(tokenPath, token.RefreshToken);
-                        }
-                        else
-                        {
-                            SimpleLogger.Instance.Error("[EPIC] Authentication with authorization code failed. The code might be expired or invalid.");
+                            token = api.AuthenticateWithAuthorizationCode(authCode);
+                            if (token != null && !string.IsNullOrEmpty(token.RefreshToken))
+                            {
+                                File.WriteAllText(tokenPath, token.RefreshToken);
+                            }
+                            else
+                            {
+                                SimpleLogger.Instance.Error("[EPIC] Authentication with authorization code failed. The code might be expired or invalid.");
+                            }
                         }
                     }
+                    finally
+                    {
+                        try { File.Delete(codePath); } catch { }
+                    }
                 }
-                catch (Exception ex)
-                {
-                    SimpleLogger.Instance.Error("[EPIC] Error authenticating with authorization code: " + ex.Message, ex);
-                }
-                finally
-                {
-                    try { File.Delete(codePath); } catch { }
-                }
-            }
 
-            if (token == null && File.Exists(tokenPath))
-            {
-                string refreshToken = File.ReadAllText(tokenPath).Trim();
-                if (!string.IsNullOrEmpty(refreshToken))
+                if (token == null && File.Exists(tokenPath))
                 {
-                    token = api.AuthenticateWithRefreshToken(refreshToken);
-                    if (token != null && !string.IsNullOrEmpty(token.RefreshToken))
-                        File.WriteAllText(tokenPath, token.RefreshToken);
+                    string refreshToken = File.ReadAllText(tokenPath).Trim();
+                    if (!string.IsNullOrEmpty(refreshToken))
+                    {
+                        token = api.AuthenticateWithRefreshToken(refreshToken);
+                        if (token != null && !string.IsNullOrEmpty(token.RefreshToken))
+                            File.WriteAllText(tokenPath, token.RefreshToken);
+                    }
                 }
-            }
 
-            if (token != null && !string.IsNullOrEmpty(token.AccessToken))
-            {
-                try
+                if (token != null && !string.IsNullOrEmpty(token.AccessToken))
                 {
                     var libraryItems = api.GetLibraryItems(token.AccessToken, token.AccountId);
                     if (libraryItems != null)
                     {
                         foreach (var item in libraryItems)
                         {
-                            // Filter out DLCs, etc. A base game seems to have an empty dependencies array. Also filter out UE Marketplace assets.
-                            if (item.Dependencies != null && item.Dependencies.Count == 0 && item.SandboxName != "UE Marketplace")
+                            // Filter out DLCs, etc. A base game has no mainGameItem. Also filter out UE Marketplace assets.
+                            if (item.Metadata != null && item.Metadata.MainGameItem == null && item.AppName != "UE_4.27")
                             {
                                 apiGames.Add(new LauncherGameInfo
                                 {
                                     Id = item.AppName,
-                                    Name = item.SandboxName,
+                                    Name = item.Metadata.DisplayName,
                                     LauncherUrl = string.Format(GameLaunchUrl, item.AppName),
                                     Launcher = GameLauncherType.Epic
                                 });
@@ -86,14 +83,14 @@ namespace EmulatorLauncher.Common.Launchers
                         }
                     }
                 }
-                catch (Exception ex)
+                else
                 {
-                    SimpleLogger.Instance.Error("[EPIC] Error getting games from API: " + ex.Message, ex);
+                     SimpleLogger.Instance.Info("[EPIC] Could not get an access token. Only installed games will be listed.");
                 }
             }
-            else
+            catch (Exception ex)
             {
-                 SimpleLogger.Instance.Info("[EPIC] Could not get an access token. Only installed games will be listed.");
+                SimpleLogger.Instance.Error("[EPIC] Error getting games from API: " + ex.Message, ex);
             }
 
             var installedGames = GetInstalledGames(apiGames);
