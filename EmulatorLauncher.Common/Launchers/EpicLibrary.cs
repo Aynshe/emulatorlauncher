@@ -85,6 +85,13 @@ namespace EmulatorLauncher.Common.Launchers
 
                 var gameName = manifest.DisplayName ?? Path.GetFileName(app.InstallLocation);
 
+                if (apiGames != null)
+                {
+                    var apiGame = apiGames.FirstOrDefault(g => g.Id == app.AppName);
+                    if (apiGame != null && !string.IsNullOrEmpty(apiGame.Name))
+                        gameName = apiGame.Name;
+                }
+
                 var installLocation = manifest.InstallLocation ?? app.InstallLocation;
                 if (string.IsNullOrEmpty(installLocation))
                     continue;
@@ -128,7 +135,7 @@ namespace EmulatorLauncher.Common.Launchers
                     string authCode = File.ReadAllText(codePath).Trim();
                     if (!string.IsNullOrEmpty(authCode))
                     {
-                        token = api.AuthenticateWithAuthorizationCode(authCode).Result;
+                        token = api.AuthenticateWithAuthorizationCode(authCode);
                         if (token != null && !string.IsNullOrEmpty(token.RefreshToken))
                         {
                             File.WriteAllText(tokenPath, token.RefreshToken);
@@ -149,7 +156,7 @@ namespace EmulatorLauncher.Common.Launchers
                 {
                     string refreshToken = File.ReadAllText(tokenPath).Trim();
                     if (!string.IsNullOrEmpty(refreshToken))
-                        token = api.AuthenticateWithRefreshToken(refreshToken).Result;
+                        token = api.AuthenticateWithRefreshToken(refreshToken);
                 }
                 catch (Exception ex)
                 {
@@ -161,7 +168,7 @@ namespace EmulatorLauncher.Common.Launchers
             {
                 try
                 {
-                    var libraryItems = api.GetLibraryItems(token.AccessToken, token.AccountId).Result;
+                    var libraryItems = api.GetLibraryItems(token.AccessToken, token.AccountId);
                     foreach (var item in libraryItems)
                     {
                         if (item.Metadata != null && item.Metadata.MainGameItem != null && item.Id == item.Metadata.MainGameItem.Id)
