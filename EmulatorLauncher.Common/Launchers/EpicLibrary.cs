@@ -124,22 +124,34 @@ namespace EmulatorLauncher.Common.Launchers
 
             var allGames = new Dictionary<string, LauncherGameInfo>();
             var apiGames = new List<LauncherGameInfo>();
+
+            SimpleLogger.Instance.Info("[EPIC] Instantiating EpicApi.");
             var api = new EpicApi();
             EpicToken token = null;
 
             string tokenPath = Path.Combine(retrobatPath, "user", "apikey", "epic.token");
+            SimpleLogger.Instance.Info("[EPIC] Token path: " + tokenPath);
+
             string codePath = Path.Combine(retrobatPath, "user", "apikey", "epic.code");
+            SimpleLogger.Instance.Info("[EPIC] Code path: " + codePath);
 
             if (File.Exists(codePath))
             {
+                SimpleLogger.Instance.Info("[EPIC] epic.code file found.");
                 try
                 {
                     string authCode = File.ReadAllText(codePath).Trim();
+                    SimpleLogger.Instance.Info("[EPIC] Read authCode from file.");
+
                     if (!string.IsNullOrEmpty(authCode))
                     {
+                        SimpleLogger.Instance.Info("[EPIC] Authenticating with authorization code.");
                         token = api.AuthenticateWithAuthorizationCode(authCode);
+                        SimpleLogger.Instance.Info("[EPIC] Authentication with authorization code finished. Token is " + (token == null ? "null" : "not null"));
+
                         if (token != null && !string.IsNullOrEmpty(token.RefreshToken))
                         {
+                            SimpleLogger.Instance.Info("[EPIC] Got refresh token. Writing to file and deleting code file.");
                             File.WriteAllText(tokenPath, token.RefreshToken);
                             try { File.Delete(codePath); } catch { }
                         }
@@ -147,51 +159,67 @@ namespace EmulatorLauncher.Common.Launchers
                 }
                 catch (Exception ex)
                 {
-                    SimpleLogger.Instance.Error("[EPIC] Error authenticating with authorization code: " + ex.Message);
+                    SimpleLogger.Instance.Error("[EPIC] Error authenticating with authorization code: " + ex.Message, ex);
                     try { File.Delete(codePath); } catch { }
                 }
             }
 
             if (token == null && File.Exists(tokenPath))
             {
+                SimpleLogger.Instance.Info("[EPIC] epic.token file found.");
                 try
                 {
                     string refreshToken = File.ReadAllText(tokenPath).Trim();
+                    SimpleLogger.Instance.Info("[EPIC] Read refresh token from file.");
                     if (!string.IsNullOrEmpty(refreshToken))
+                    {
+                        SimpleLogger.Instance.Info("[EPIC] Authenticating with refresh token.");
                         token = api.AuthenticateWithRefreshToken(refreshToken);
+                        SimpleLogger.Instance.Info("[EPIC] Authentication with refresh token finished. Token is " + (token == null ? "null" : "not null"));
+                    }
                 }
                 catch (Exception ex)
                 {
-                    SimpleLogger.Instance.Error("[EPIC] Error authenticating with refresh token: " + ex.Message);
+                    SimpleLogger.Instance.Error("[EPIC] Error authenticating with refresh token: " + ex.Message, ex);
                 }
             }
 
             if (token != null && !string.IsNullOrEmpty(token.AccessToken))
             {
+                SimpleLogger.Instance.Info("[EPIC] Access token found. Getting library items.");
                 try
                 {
                     var libraryItems = api.GetLibraryItems(token.AccessToken, token.AccountId);
-                    foreach (var item in libraryItems)
+                    SimpleLogger.Instance.Info("[EPIC] Got " + (libraryItems == null ? "null" : libraryItems.Count.ToString()) + " library items from API.");
+
+                    if (libraryItems != null)
                     {
-                        if (item.Metadata != null && item.Metadata.MainGameItem != null && item.Id == item.Metadata.MainGameItem.Id)
+                        foreach (var item in libraryItems)
                         {
-                            apiGames.Add(new LauncherGameInfo
+                            if (item.Metadata != null && item.Metadata.MainGameItem != null && item.Id == item.Metadata.MainGameItem.Id)
                             {
-                                Id = item.AppName,
-                                Name = item.Metadata.DisplayName,
-                                LauncherUrl = string.Format(GameLaunchUrl, item.AppName),
-                                Launcher = GameLauncherType.Epic
-                            });
+                                apiGames.Add(new LauncherGameInfo
+                                {
+                                    Id = item.AppName,
+                                    Name = item.Metadata.DisplayName,
+                                    LauncherUrl = string.Format(GameLaunchUrl, item.AppName),
+                                    Launcher = GameLauncherType.Epic
+                                });
+                            }
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    SimpleLogger.Instance.Error("[EPIC] Error getting games from API: " + ex.Message);
+                    SimpleLogger.Instance.Error("[EPIC] Error getting games from API: " + ex.Message, ex);
                 }
             }
 
+            SimpleLogger.Instance.Info("[EPIC] Found " + apiGames.Count + " games from API.");
+            SimpleLogger.Instance.Info("[EPIC] Getting installed games.");
             var installedGames = GetInstalledGames(apiGames);
+            SimpleLogger.Instance.Info("[EPIC] Found " + installedGames.Length + " installed games.");
+
             foreach (var game in installedGames)
             {
                 if (!allGames.ContainsKey(game.Id))
@@ -201,6 +229,8 @@ namespace EmulatorLauncher.Common.Launchers
             }
 
             var nonInstalledGames = apiGames.Where(g => !allGames.ContainsKey(g.Id)).ToList();
+            SimpleLogger.Instance.Info("[EPIC] Found " + nonInstalledGames.Count + " non-installed games.");
+
             foreach (var game in nonInstalledGames)
             {
                 if (!allGames.ContainsKey(game.Id))
@@ -209,6 +239,7 @@ namespace EmulatorLauncher.Common.Launchers
                 }
             }
 
+            SimpleLogger.Instance.Info("[EPIC] Total games to return: " + allGames.Count);
             return allGames.Values.ToArray();
         }
 

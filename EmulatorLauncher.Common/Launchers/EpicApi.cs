@@ -32,9 +32,11 @@ namespace EmulatorLauncher.Common.Launchers
 
         private EpicToken PostTokenRequest(Dictionary<string, string> body)
         {
+            SimpleLogger.Instance.Info("[EPIC] PostTokenRequest: Starting.");
             var request = (HttpWebRequest)WebRequest.Create(TokenUrl);
             request.Method = "POST";
             request.ContentType = "application/x-www-form-urlencoded";
+            SimpleLogger.Instance.Info("[EPIC] PostTokenRequest: WebRequest created.");
 
             var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{ClientId}:{ClientSecret}"));
             request.Headers.Add("Authorization", $"basic {credentials}");
@@ -44,31 +46,42 @@ namespace EmulatorLauncher.Common.Launchers
 
             request.ContentLength = data.Length;
 
+            SimpleLogger.Instance.Info("[EPIC] PostTokenRequest: Getting request stream.");
             using (var stream = request.GetRequestStream())
             {
                 stream.Write(data, 0, data.Length);
             }
+            SimpleLogger.Instance.Info("[EPIC] PostTokenRequest: Request stream written.");
 
             try
             {
+                SimpleLogger.Instance.Info("[EPIC] PostTokenRequest: Getting response.");
                 using (var response = (HttpWebResponse)request.GetResponse())
                 {
+                    SimpleLogger.Instance.Info("[EPIC] PostTokenRequest: Response received with status: " + response.StatusCode);
                     if (response.StatusCode == HttpStatusCode.OK)
                     {
                         using (var reader = new StreamReader(response.GetResponseStream()))
                         {
                             var json = reader.ReadToEnd();
+                            SimpleLogger.Instance.Info("[EPIC] PostTokenRequest: Success.");
                             return JsonConvert.DeserializeObject<EpicToken>(json);
                         }
                     }
                 }
             }
-            catch (WebException)
+            catch (WebException ex)
             {
-                // API returns 400 for bad codes, etc.
+                SimpleLogger.Instance.Error("[EPIC] PostTokenRequest failed with WebException: " + ex.Message);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.Instance.Error("[EPIC] PostTokenRequest failed with Exception: " + ex.Message);
                 return null;
             }
 
+            SimpleLogger.Instance.Info("[EPIC] PostTokenRequest: Failed with no exception.");
             return null;
         }
 
