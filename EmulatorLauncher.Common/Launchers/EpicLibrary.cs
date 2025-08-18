@@ -69,8 +69,8 @@ namespace EmulatorLauncher.Common.Launchers
                     {
                         foreach (var item in libraryItems)
                         {
-                            // Filter out DLCs, etc. A base game has no mainGameItem. Also filter out UE Marketplace assets.
-                            if (item.Metadata != null && item.Metadata.MainGameItem == null && item.AppName != "UE_4.27")
+                            // Filter out DLCs, etc. A base game has no mainGameItem.
+                            if (item.Metadata != null && item.Metadata.MainGameItem == null)
                             {
                                 apiGames.Add(new LauncherGameInfo
                                 {

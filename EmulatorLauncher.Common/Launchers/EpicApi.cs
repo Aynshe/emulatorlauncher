@@ -63,7 +63,7 @@ namespace EmulatorLauncher.Common.Launchers
 
         public List<EpicLibraryItem> GetLibraryItems(string accessToken, string accountId)
         {
-            var url = $"{LibraryUrl}?accountIds={accountId}&includeMetadata=true"; // includeMetadata is required for some fields
+            var url = $"{LibraryUrl}?accountIds={accountId}&includeMetadata=true";
             var request = (HttpWebRequest)WebRequest.Create(url);
             request.Method = "GET";
             request.Headers.Add("Authorization", $"bearer {accessToken}");
@@ -76,7 +76,6 @@ namespace EmulatorLauncher.Common.Launchers
                         using (var reader = new StreamReader(response.GetResponseStream()))
                         {
                             string json = reader.ReadToEnd();
-                            // The user log shows the response is an object with a "records" property which is the array of games
                             var result = JsonConvert.DeserializeObject<EpicLibraryResponse>(json);
                             return result?.Records ?? new List<EpicLibraryItem>();
                         }
@@ -115,11 +114,8 @@ namespace EmulatorLauncher.Common.Launchers
 
     public class EpicLibraryItem
     {
-        [JsonProperty("namespace")] public string Namespace { get; set; }
         [JsonProperty("catalogItemId")] public string CatalogItemId { get; set; }
         [JsonProperty("appName")] public string AppName { get; set; }
-        [JsonProperty("sandboxName")] public string SandboxName { get; set; }
-        [JsonProperty("dependencies")] public List<object> Dependencies { get; set; }
         [JsonProperty("metadata")] public EpicGameMetadata Metadata { get; set; }
     }
 
