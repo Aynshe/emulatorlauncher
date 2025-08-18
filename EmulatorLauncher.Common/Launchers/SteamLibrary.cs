@@ -49,6 +49,7 @@ namespace EmulatorLauncher.Common.Launchers
             }
             catch { }
 
+            SimpleLogger.Instance.Info("[Steam] Found " + games.Count + " installed games.");
             return games.ToArray();
         }
 
@@ -151,8 +152,12 @@ namespace EmulatorLauncher.Common.Launchers
             }
 
             // Then, add all other owned games from the API list we fetched earlier.
-            foreach (var game in ownedGamesFromApi)
+            var nonInstalledGames = ownedGamesFromApi.Where(g => !allGames.ContainsKey(g.Id)).ToList();
+            SimpleLogger.Instance.Info("[Steam] Found " + nonInstalledGames.Count + " non-installed games.");
+
+            foreach (var game in nonInstalledGames)
             {
+                // The check is redundant here since we know they are not in allGames, but it's safe
                 if (!allGames.ContainsKey(game.Id))
                 {
                     allGames.Add(game.Id, game);
