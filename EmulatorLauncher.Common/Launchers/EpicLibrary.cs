@@ -53,7 +53,7 @@ namespace EmulatorLauncher.Common.Launchers
             throw new ApplicationException("There is a problem: Epic Launcher is not installed");
         }
 
-        public static LauncherGameInfo[] GetInstalledGames()
+        public static LauncherGameInfo[] GetInstalledGames(List<LauncherGameInfo> apiGames = null)
         {
             var games = new List<LauncherGameInfo>();
 
@@ -96,7 +96,8 @@ namespace EmulatorLauncher.Common.Launchers
                     LauncherUrl = string.Format(GameLaunchUrl, manifest.AppName),
                     InstallDirectory = Path.GetFullPath(installLocation),
                     ExecutableName = manifest.LaunchExecutable,
-                    Launcher = GameLauncherType.Epic
+                    Launcher = GameLauncherType.Epic,
+                    IsInstalled = true
                 };
 
                 var exePath = Path.Combine(game.InstallDirectory, game.ExecutableName);
@@ -108,6 +109,69 @@ namespace EmulatorLauncher.Common.Launchers
             }
 
             return games.ToArray();
+        }
+
+        public static LauncherGameInfo[] GetAllGames(string retrobatPath)
+        {
+            var allGames = new Dictionary<string, LauncherGameInfo>();
+            var apiGames = new List<LauncherGameInfo>();
+
+            string tokenPath = Path.Combine(retrobatPath, "user", "apikey", "epic.token");
+
+            if (File.Exists(tokenPath))
+            {
+                try
+                {
+                    string refreshToken = File.ReadAllText(tokenPath).Trim();
+                    if (!string.IsNullOrEmpty(refreshToken))
+                    {
+                        var api = new EpicApi();
+                        var token = api.AuthenticateWithRefreshToken(refreshToken).Result;
+
+                        if (token != null && !string.IsNullOrEmpty(token.AccessToken))
+                        {
+                            var libraryItems = api.GetLibraryItems(token.AccessToken, token.AccountId).Result;
+                            foreach (var item in libraryItems)
+                            {
+                                if (item.Metadata != null && item.Metadata.MainGameItem != null && item.Id == item.Metadata.MainGameItem.Id)
+                                {
+                                    apiGames.Add(new LauncherGameInfo
+                                    {
+                                        Id = item.AppName,
+                                        Name = item.Metadata.DisplayName,
+                                        LauncherUrl = string.Format(GameLaunchUrl, item.AppName),
+                                        Launcher = GameLauncherType.Epic
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    SimpleLogger.Instance.Error("[EPIC] Error getting games from API: " + ex.Message);
+                }
+            }
+
+            var installedGames = GetInstalledGames(apiGames);
+            foreach (var game in installedGames)
+            {
+                if (!allGames.ContainsKey(game.Id))
+                {
+                    allGames.Add(game.Id, game);
+                }
+            }
+
+            var nonInstalledGames = apiGames.Where(g => !allGames.ContainsKey(g.Id)).ToList();
+            foreach (var game in nonInstalledGames)
+            {
+                if (!allGames.ContainsKey(game.Id))
+                {
+                    allGames.Add(game.Id, game);
+                }
+            }
+
+            return allGames.Values.ToArray();
         }
 
 
