@@ -1,11 +1,13 @@
-using EmulatorLauncher.Common.FileFormats;
-using EmulatorLauncher.Common.Launchers.Epic;
-using Microsoft.Win32;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
+using System.Text;
 using System.Runtime.Serialization;
+using System.IO;
+using EmulatorLauncher.Common.FileFormats;
+using Microsoft.Win32;
+using EmulatorLauncher.Common.Launchers.Epic;
+using EmulatorLauncher.Common.EmulationStation;
 using System.Text.RegularExpressions;
 
 namespace EmulatorLauncher.Common.Launchers
@@ -14,66 +16,76 @@ namespace EmulatorLauncher.Common.Launchers
     {
         const string GameLaunchUrl = @"com.epicgames.launcher://apps/{0}?action=launch&silent=true";
 
+        public static string GetEpicGameExecutableName(Uri uri)
+        {
+            string shorturl = Regex.Replace(uri.LocalPath, @"[^a-zA-Z0-9]", "");
+
+            var modSdkMetadataDir = GetMetadataPath();
+            if (modSdkMetadataDir != null)
+            {
+                string manifestPath = modSdkMetadataDir.ToString();
+
+                string gameExecutable = null;
+
+                if (Directory.Exists(manifestPath))
+                {
+                    foreach (var manifest in GetInstalledManifests())
+                    {
+                        if (shorturl.Equals(manifest.AppName))
+                        {
+                            gameExecutable = manifest.LaunchExecutable;
+                            break;
+                        }
+                        else if (shorturl.Equals(manifest.MainGameAppName))
+                        {
+                            gameExecutable = manifest.LaunchExecutable;
+                            break;
+                        }
+                    }
+                }
+
+                if (gameExecutable == null)
+                    throw new ApplicationException("There is a problem: The Game is not installed");
+
+                return Path.GetFileNameWithoutExtension(gameExecutable);
+            }
+
+            throw new ApplicationException("There is a problem: Epic Launcher is not installed");
+        }
+
         public static LauncherGameInfo[] GetAllGames(string retrobatPath)
         {
             var allGames = new Dictionary<string, LauncherGameInfo>();
             var apiGames = new List<LauncherGameInfo>();
-            var api = new EpicApi();
-            EpicToken token = null;
 
             string tokenPath = Path.Combine(retrobatPath, "user", "apikey", "epic.token");
 
             if (File.Exists(tokenPath))
             {
+                var api = new EpicApi();
+                EpicToken token = null;
+
                 string refreshToken = File.ReadAllText(tokenPath).Trim();
                 if (!string.IsNullOrEmpty(refreshToken))
-                {
-                    token = api.AuthenticateWithRefreshToken(refreshToken);
-                    if (token == null)
-                    {
-                        SimpleLogger.Instance.Info("[EPIC] Refresh token is invalid, deleting it.");
-                        try { File.Delete(tokenPath); } catch { }
-                    }
-                }
-            }
+                    token = api.AuthenticateWithRefreshToken(refreshToken).Result;
 
-            if (token == null)
-            {
-                SimpleLogger.Instance.Info("[EPIC] No valid token found. Starting interactive login.");
-                var oauthClient = new EpicOAuthClient();
-                string authCode = oauthClient.PerformInteractiveLogin();
-
-                if (!string.IsNullOrEmpty(authCode))
+                if (token != null && !string.IsNullOrEmpty(token.AccessToken))
                 {
-                    token = api.AuthenticateWithAuthorizationCode(authCode);
-                    if (token != null && !string.IsNullOrEmpty(token.RefreshToken))
+                    var libraryItems = api.GetLibraryItems(token.AccessToken, token.AccountId).Result;
+                    if (libraryItems != null)
                     {
-                        File.WriteAllText(tokenPath, token.RefreshToken);
-                        SimpleLogger.Instance.Info("[EPIC] Successfully authenticated and saved new refresh token.");
-                    }
-                    else
-                        SimpleLogger.Instance.Error("[EPIC] Failed to exchange authorization code for a token.");
-                }
-                else
-                    SimpleLogger.Instance.Error("[EPIC] Interactive login did not return an authorization code.");
-            }
-
-            if (token != null && !string.IsNullOrEmpty(token.AccessToken))
-            {
-                var libraryItems = api.GetLibraryItems(token.AccessToken, token.AccountId);
-                if (libraryItems != null)
-                {
-                    foreach (var item in libraryItems)
-                    {
-                        if (item.Metadata != null && item.Metadata.MainGameItem != null && item.Id == item.Metadata.MainGameItem.Id)
+                        foreach (var item in libraryItems)
                         {
-                            apiGames.Add(new LauncherGameInfo
+                            if (item.Metadata != null && item.Metadata.MainGameItem != null && item.Id == item.Metadata.MainGameItem.Id)
                             {
-                                Id = item.AppName,
-                                Name = item.Metadata.DisplayName,
-                                LauncherUrl = string.Format(GameLaunchUrl, item.AppName),
-                                Launcher = GameLauncherType.Epic
-                            });
+                                apiGames.Add(new LauncherGameInfo
+                                {
+                                    Id = item.AppName,
+                                    Name = item.Metadata.DisplayName,
+                                    LauncherUrl = string.Format(GameLaunchUrl, item.AppName),
+                                    Launcher = GameLauncherType.Epic
+                                });
+                            }
                         }
                     }
                 }
@@ -159,38 +171,8 @@ namespace EmulatorLauncher.Common.Launchers
             return games.ToArray();
         }
 
-        public static string GetEpicGameExecutableName(Uri uri)
-        {
-            string shorturl = Regex.Replace(uri.LocalPath, @"[^a-zA-Z0-9]", "");
 
-            var modSdkMetadataDir = GetMetadataPath();
-            if (modSdkMetadataDir != null)
-            {
-                string manifestPath = modSdkMetadataDir.ToString();
-                string gameExecutable = null;
-                if (Directory.Exists(manifestPath))
-                {
-                    foreach (var manifest in GetInstalledManifests())
-                    {
-                        if (shorturl.Equals(manifest.AppName) || shorturl.Equals(manifest.MainGameAppName))
-                        {
-                            gameExecutable = manifest.LaunchExecutable;
-                            break;
-                        }
-                    }
-                }
-
-                if (gameExecutable == null)
-                    throw new ApplicationException("There is a problem: The Game is not installed");
-
-                return Path.GetFileNameWithoutExtension(gameExecutable);
-            }
-
-            throw new ApplicationException("There is a problem: Epic Launcher is not installed");
-        }
-
-
-        private static string AllUsersPath { get { return Path.Combine(Environment.ExpandEnvironmentVariables("%PROGRAMDATA%"), "Epic"); } }
+        static string AllUsersPath { get { return Path.Combine(Environment.ExpandEnvironmentVariables("%PROGRAMDATA%"), "Epic"); } }
 
         public static bool IsInstalled
         {
@@ -200,7 +182,7 @@ namespace EmulatorLauncher.Common.Launchers
             }
         }
 
-        private static string GetExecutablePath()
+        static string GetExecutablePath()
         {
             var modSdkMetadataDir = Registry.GetValue("HKEY_CURRENT_USER\\Software\\Epic Games\\EOS", "ModSdkCommand", null);
             if (modSdkMetadataDir != null)
@@ -209,7 +191,7 @@ namespace EmulatorLauncher.Common.Launchers
             return null;
         }
 
-        private static string GetMetadataPath()
+        static string GetMetadataPath()
         {
             var modSdkMetadataDir = Registry.GetValue("HKEY_CURRENT_USER\\Software\\Epic Games\\EOS", "ModSdkMetadataDir", null);
             if (modSdkMetadataDir != null)
@@ -218,7 +200,7 @@ namespace EmulatorLauncher.Common.Launchers
             return null;
         }
 
-        private static List<LauncherInstalled.InstalledApp> GetInstalledAppList()
+        static List<LauncherInstalled.InstalledApp> GetInstalledAppList()
         {
             var installListPath = Path.Combine(AllUsersPath, "UnrealEngineLauncher", "LauncherInstalled.dat");
             if (!File.Exists(installListPath))
@@ -228,7 +210,7 @@ namespace EmulatorLauncher.Common.Launchers
             return list.InstallationList;
         }
 
-        private static IEnumerable<EpicGame> GetInstalledManifests()
+        static IEnumerable<EpicGame> GetInstalledManifests()
         {
             var installListPath = GetMetadataPath();
             if (Directory.Exists(installListPath))
@@ -236,6 +218,7 @@ namespace EmulatorLauncher.Common.Launchers
                 foreach (var manFile in Directory.GetFiles(installListPath, "*.item"))
                 {
                     EpicGame manifest = null;
+
                     try { manifest = JsonSerializer.DeserializeString<EpicGame>(File.ReadAllText(manFile)); }
                     catch { }
 
@@ -244,6 +227,7 @@ namespace EmulatorLauncher.Common.Launchers
                 }
             }
         }
+
     }
 }
 
@@ -274,16 +258,22 @@ namespace EmulatorLauncher.Common.Launchers.Epic
     {
         [DataMember]
         public string AppName { get; set; }
+
         [DataMember]
         public string CatalogNamespace { get; set; }
+
         [DataMember]
         public string LaunchExecutable { get; set; }
+
         [DataMember]
         public string InstallLocation;
+
         [DataMember]
         public string MainGameAppName;
+
         [DataMember]
         public string DisplayName;
+
         [DataMember]
         public List<string> AppCategories { get; set; }
     }

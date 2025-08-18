@@ -409,6 +409,34 @@ namespace EmulatorLauncher
                 return;
             }
 
+            if (args.Any(a => "-linkepic".Equals(a, StringComparison.InvariantCultureIgnoreCase)))
+            {
+                var retrobatPath = AppConfig.GetFullPath("retrobat");
+                var oauthClient = new EpicOAuthClient();
+                string authCode = oauthClient.PerformInteractiveLogin();
+
+                if (!string.IsNullOrEmpty(authCode))
+                {
+                    var api = new EpicApi();
+                    var token = api.AuthenticateWithAuthorizationCode(authCode);
+                    if (token != null && !string.IsNullOrEmpty(token.RefreshToken))
+                    {
+                        string tokenPath = Path.Combine(retrobatPath, "user", "apikey", "epic.token");
+                        File.WriteAllText(tokenPath, token.RefreshToken);
+                        MessageBox.Show("Epic Games account successfully linked.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    else
+                    {
+                        MessageBox.Show("Failed to exchange authorization code for a token. The code may be invalid or expired.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+                else
+                {
+                    MessageBox.Show("Interactive login failed to return an authorization code.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                return;
+            }
+
             if (args.Any(a => "-resetusbcontrollers".Equals(a, StringComparison.InvariantCultureIgnoreCase)))
             {
                 bool elevated = WindowsIdentity.GetCurrent().Owner.IsWellKnown(WellKnownSidType.BuiltinAdministratorsSid);
