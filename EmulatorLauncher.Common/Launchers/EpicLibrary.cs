@@ -151,15 +151,22 @@ namespace EmulatorLauncher.Common.Launchers
 
                         if (token != null && !string.IsNullOrEmpty(token.RefreshToken))
                         {
-                            SimpleLogger.Instance.Info("[EPIC] Got refresh token. Writing to file and deleting code file.");
+                            SimpleLogger.Instance.Info("[EPIC] Got refresh token. Writing to file.");
                             File.WriteAllText(tokenPath, token.RefreshToken);
-                            try { File.Delete(codePath); } catch { }
+                        }
+                        else
+                        {
+                            SimpleLogger.Instance.Error("[EPIC] Authentication with authorization code failed. The code might be expired or invalid. Please get a new one.");
                         }
                     }
                 }
                 catch (Exception ex)
                 {
                     SimpleLogger.Instance.Error("[EPIC] Error authenticating with authorization code: " + ex.Message, ex);
+                }
+                finally
+                {
+                    SimpleLogger.Instance.Info("[EPIC] Deleting epic.code file.");
                     try { File.Delete(codePath); } catch { }
                 }
             }
