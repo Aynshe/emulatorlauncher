@@ -188,7 +188,7 @@ namespace EmulatorLauncher.Common.Launchers
 
             // 3. Call Steam Web API
             string url = $"https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key={apiKey}&steamid={steamId64}&format=json&include_appinfo=1&include_played_free_games=true&skip_unvetted_apps=false";
-            SimpleLogger.Instance.Info("[Steam] Calling Steam Web API: " + url.Replace(apiKey, "REDACTED"));
+            SimpleLogger.Instance.Info("[Steam] Calling Steam Web API for owned games list: " + url.Replace(apiKey, "REDACTED"));
 
             try
             {
