@@ -76,9 +76,7 @@ namespace EmulatorLauncher.Common.Launchers
                         using (var reader = new StreamReader(response.GetResponseStream()))
                         {
                             string json = reader.ReadToEnd();
-                            // The user log shows the response is an object with a "records" property which is the array of games
-                            var result = JsonConvert.DeserializeObject<EpicLibraryResponse>(json);
-                            return result?.Records ?? new List<EpicLibraryItem>();
+                            return JsonConvert.DeserializeObject<List<EpicLibraryItem>>(json) ?? new List<EpicLibraryItem>();
                         }
                     }
                 }
@@ -90,12 +88,6 @@ namespace EmulatorLauncher.Common.Launchers
             }
             return new List<EpicLibraryItem>();
         }
-    }
-
-    public class EpicLibraryResponse
-    {
-        [JsonProperty("records")]
-        public List<EpicLibraryItem> Records { get; set; }
     }
 
     public class EpicToken
