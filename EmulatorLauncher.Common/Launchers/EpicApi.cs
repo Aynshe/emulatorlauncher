@@ -17,6 +17,16 @@ namespace EmulatorLauncher.Common.Launchers
         private const string ClientId = "34a02cf8f4414e29b15921876da36f9a";
         private const string ClientSecret = "daafbccc737745039d5256d3e6b86427";
 
+        public EpicApi()
+        {
+            try
+            {
+                // Force TLS 1.2 for .NET 4.0
+                ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072;
+            }
+            catch { }
+        }
+
         private EpicToken PostTokenRequest(Dictionary<string, string> body)
         {
             var request = (HttpWebRequest)WebRequest.Create(TokenUrl);
