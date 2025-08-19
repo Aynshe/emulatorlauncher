@@ -19,6 +19,9 @@ namespace EmulatorLauncher.Common.Launchers
             var allGames = new Dictionary<string, LauncherGameInfo>();
             var apiGames = new List<LauncherGameInfo>();
 
+            SimpleLogger.Instance.Info("[Epic] Getting Epic games.");
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+
             try
             {
                 var api = new EpicApi();
@@ -64,9 +67,11 @@ namespace EmulatorLauncher.Common.Launchers
 
                 if (token != null && !string.IsNullOrEmpty(token.AccessToken))
                 {
+                    SimpleLogger.Instance.Info("[Epic] Epic API key found. Getting games from API.");
                     var libraryItems = api.GetLibraryItems(token.AccessToken, token.AccountId);
                     if (libraryItems != null)
                     {
+                        SimpleLogger.Instance.Info("[Epic] Found " + libraryItems.Count + " games from API.");
                         foreach (var item in libraryItems)
                         {
                             apiGames.Add(new LauncherGameInfo
@@ -81,7 +86,7 @@ namespace EmulatorLauncher.Common.Launchers
                 }
                 else
                 {
-                     SimpleLogger.Instance.Info("[EPIC] Could not get an access token. Only installed games will be listed.");
+                     SimpleLogger.Instance.Info("[Epic] Could not get an access token. Only installed games will be listed.");
                 }
             }
             catch (Exception ex)
@@ -90,6 +95,7 @@ namespace EmulatorLauncher.Common.Launchers
             }
 
             var installedGames = GetInstalledGames(apiGames);
+            SimpleLogger.Instance.Info("[Epic] Found " + installedGames.Length + " installed games.");
 
             foreach (var game in installedGames)
             {
@@ -101,6 +107,7 @@ namespace EmulatorLauncher.Common.Launchers
             }
 
             var nonInstalledGames = apiGames.Where(g => !allGames.ContainsKey(g.Id)).ToList();
+            SimpleLogger.Instance.Info("[Epic] Found " + nonInstalledGames.Count + " non-installed games.");
 
             foreach (var game in nonInstalledGames)
             {
@@ -109,6 +116,9 @@ namespace EmulatorLauncher.Common.Launchers
                     allGames.Add(game.Id, game);
                 }
             }
+
+            watch.Stop();
+            SimpleLogger.Instance.Info("[Epic] Import process finished in " + watch.ElapsedMilliseconds + " ms.");
 
             return allGames.Values.ToArray();
         }
