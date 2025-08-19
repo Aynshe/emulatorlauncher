@@ -194,6 +194,15 @@ namespace EmulatorLauncher.Common.Launchers
             throw new ApplicationException("There is a problem: Epic Launcher is not installed");
         }
 
+        public static bool IsGameInstalled(string appName)
+        {
+            var manifests = GetInstalledManifests();
+            if (manifests == null)
+                return false;
+
+            return manifests.Any(m => m.AppName == appName);
+        }
+
         private static string AllUsersPath { get { return Path.Combine(Environment.ExpandEnvironmentVariables("%PROGRAMDATA%"), "Epic"); } }
         public static bool IsInstalled { get { return File.Exists(GetExecutablePath()); } }
         private static string GetExecutablePath()

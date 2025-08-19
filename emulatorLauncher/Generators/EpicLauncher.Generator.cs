@@ -1,8 +1,9 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Diagnostics;
 using EmulatorLauncher.Common.Launchers;
 using EmulatorLauncher.Common;
+using System.Text.RegularExpressions;
 
 namespace EmulatorLauncher
 {
@@ -10,13 +11,30 @@ namespace EmulatorLauncher
     {
         class EpicGameLauncher : GameLauncher
         {
+            private bool _isInstalled;
+
             public EpicGameLauncher(Uri uri)
             {
-                LauncherExe = EpicLibrary.GetEpicGameExecutableName(uri);
+                var match = Regex.Match(uri.ToString(), @"apps/([^?]+)");
+                if (match.Success)
+                {
+                    string appName = match.Groups[1].Value;
+                    _isInstalled = EpicLibrary.IsGameInstalled(appName);
+                    if (_isInstalled)
+                    {
+                        LauncherExe = EpicLibrary.GetEpicGameExecutableName(uri);
+                    }
+                }
             }
 
             public override int RunAndWait(ProcessStartInfo path)
             {
+                if (!_isInstalled)
+                {
+                    Process.Start(path);
+                    return 0;
+                }
+
                 bool uiExists = Process.GetProcessesByName("EpicGamesLauncher").Any();
                 SimpleLogger.Instance.Info("[INFO] Executable name : " + LauncherExe);
                 KillExistingLauncherExes();
