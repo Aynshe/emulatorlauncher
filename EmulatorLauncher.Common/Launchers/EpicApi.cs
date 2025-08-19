@@ -62,7 +62,7 @@ namespace EmulatorLauncher.Common.Launchers
             return PostTokenRequest(body);
         }
 
-        public List<EpicLibraryItem> GetLibraryItems(string accessToken, string accountId)
+        public List<EpicLibraryItem> GetLibraryItems(string accessToken, string accountId, string cachePath)
         {
             var games = new List<EpicLibraryItem>();
 
@@ -77,7 +77,7 @@ namespace EmulatorLauncher.Common.Launchers
             {
                 if (asset.@namespace == "ue") continue;
 
-                var catalogItem = GetCatalogItem(accessToken, asset.@namespace, asset.catalogItemId);
+                var catalogItem = GetCatalogItem(accessToken, asset.@namespace, asset.catalogItemId, cachePath);
                 if (catalogItem == null) continue;
 
                 if (catalogItem.categories?.Any(a => a.path == "applications") != true) continue;
@@ -125,8 +125,29 @@ namespace EmulatorLauncher.Common.Launchers
             return new List<Asset>();
         }
 
-        private CatalogItem GetCatalogItem(string accessToken, string nameSpace, string id)
+        private CatalogItem GetCatalogItem(string accessToken, string nameSpace, string id, string cachePath)
         {
+            string cacheFile = null;
+            if (!string.IsNullOrEmpty(cachePath))
+            {
+                cacheFile = Path.Combine(cachePath, $"{nameSpace}_{id}.json");
+                if (File.Exists(cacheFile))
+                {
+                    try
+                    {
+                        var result = JsonConvert.DeserializeObject<Dictionary<string, CatalogItem>>(File.ReadAllText(cacheFile));
+                        if (result.TryGetValue(id, out var catalogItem))
+                        {
+                            return catalogItem;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        SimpleLogger.Instance.Error($"[EPIC] Failed to read cache file {cacheFile}: " + ex.Message, ex);
+                    }
+                }
+            }
+
             try
             {
                 var url = string.Format(CatalogUrl, nameSpace, id);
@@ -139,7 +160,13 @@ namespace EmulatorLauncher.Common.Launchers
                     {
                         using (var reader = new StreamReader(response.GetResponseStream()))
                         {
-                            var result = JsonConvert.DeserializeObject<Dictionary<string, CatalogItem>>(reader.ReadToEnd());
+                            string json = reader.ReadToEnd();
+                            if (!string.IsNullOrEmpty(cacheFile))
+                            {
+                                File.WriteAllText(cacheFile, json);
+                            }
+
+                            var result = JsonConvert.DeserializeObject<Dictionary<string, CatalogItem>>(json);
                             if (result.TryGetValue(id, out var catalogItem))
                             {
                                 return catalogItem;

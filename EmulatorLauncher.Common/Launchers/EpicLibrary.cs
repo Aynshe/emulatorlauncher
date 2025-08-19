@@ -69,7 +69,12 @@ namespace EmulatorLauncher.Common.Launchers
                 if (token != null && !string.IsNullOrEmpty(token.AccessToken))
                 {
                     SimpleLogger.Instance.Info("[Epic] Epic API key found. Getting games from API.");
-                    apiGames = api.GetLibraryItems(token.AccessToken, token.AccountId);
+
+                    string cachePath = Path.Combine(retrobatPath, "user", "cache", "epic");
+                    if (!Directory.Exists(cachePath))
+                        Directory.CreateDirectory(cachePath);
+
+                    apiGames = api.GetLibraryItems(token.AccessToken, token.AccountId, cachePath);
                     SimpleLogger.Instance.Info("[Epic] Found " + apiGames.Count + " games from API.");
                 }
                 else
