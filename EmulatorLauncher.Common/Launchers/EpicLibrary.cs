@@ -13,7 +13,7 @@ namespace EmulatorLauncher.Common.Launchers
     public class EpicLibrary
     {
         const string GameLaunchUrl = @"com.epicgames.launcher://apps/{0}?action=launch&silent=true";
-        const string GameInstallUrl = @"com.epicgames.launcher://apps/{0}";
+        const string GameInstallUrl = @"com.epicgames.launcher://apps/{0}?action=install";
 
         public static LauncherGameInfo[] GetAllGames(string retrobatPath)
         {
