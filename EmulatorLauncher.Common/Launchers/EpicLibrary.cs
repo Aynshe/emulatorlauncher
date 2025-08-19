@@ -13,11 +13,12 @@ namespace EmulatorLauncher.Common.Launchers
     public class EpicLibrary
     {
         const string GameLaunchUrl = @"com.epicgames.launcher://apps/{0}?action=launch&silent=true";
+        const string GameInstallUrl = @"com.epicgames.launcher://apps/{0}";
 
         public static LauncherGameInfo[] GetAllGames(string retrobatPath)
         {
             var allGames = new Dictionary<string, LauncherGameInfo>();
-            var apiGames = new List<LauncherGameInfo>();
+            var apiGames = new List<EpicLibraryItem>();
 
             SimpleLogger.Instance.Info("[Epic] Getting Epic games.");
             var watch = System.Diagnostics.Stopwatch.StartNew();
@@ -68,21 +69,8 @@ namespace EmulatorLauncher.Common.Launchers
                 if (token != null && !string.IsNullOrEmpty(token.AccessToken))
                 {
                     SimpleLogger.Instance.Info("[Epic] Epic API key found. Getting games from API.");
-                    var libraryItems = api.GetLibraryItems(token.AccessToken, token.AccountId);
-                    if (libraryItems != null)
-                    {
-                        SimpleLogger.Instance.Info("[Epic] Found " + libraryItems.Count + " games from API.");
-                        foreach (var item in libraryItems)
-                        {
-                            apiGames.Add(new LauncherGameInfo
-                            {
-                                Id = item.AppName,
-                                Name = item.Metadata.DisplayName,
-                                LauncherUrl = string.Format(GameLaunchUrl, item.AppName),
-                                Launcher = GameLauncherType.Epic
-                            });
-                        }
-                    }
+                    apiGames = api.GetLibraryItems(token.AccessToken, token.AccountId);
+                    SimpleLogger.Instance.Info("[Epic] Found " + apiGames.Count + " games from API.");
                 }
                 else
                 {
@@ -94,7 +82,8 @@ namespace EmulatorLauncher.Common.Launchers
                 SimpleLogger.Instance.Error("[EPIC] Error getting games from API: " + ex.Message, ex);
             }
 
-            var installedGames = GetInstalledGames(apiGames);
+            var apiGamesInfo = apiGames.Select(g => new LauncherGameInfo { Id = g.AppName, Name = g.Metadata.DisplayName, Launcher = GameLauncherType.Epic }).ToDictionary(g => g.Id);
+            var installedGames = GetInstalledGames(apiGamesInfo.Values.ToList());
             SimpleLogger.Instance.Info("[Epic] Found " + installedGames.Length + " installed games.");
 
             foreach (var game in installedGames)
@@ -106,13 +95,14 @@ namespace EmulatorLauncher.Common.Launchers
                 }
             }
 
-            var nonInstalledGames = apiGames.Where(g => !allGames.ContainsKey(g.Id)).ToList();
+            var nonInstalledGames = apiGamesInfo.Values.Where(g => !allGames.ContainsKey(g.Id)).ToList();
             SimpleLogger.Instance.Info("[Epic] Found " + nonInstalledGames.Count + " non-installed games.");
 
             foreach (var game in nonInstalledGames)
             {
                 if (!allGames.ContainsKey(game.Id))
                 {
+                    game.LauncherUrl = string.Format(GameInstallUrl, game.Id);
                     allGames.Add(game.Id, game);
                 }
             }
