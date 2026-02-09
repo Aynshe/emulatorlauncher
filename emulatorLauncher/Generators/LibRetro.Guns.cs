@@ -51,13 +51,9 @@ namespace EmulatorLauncher.Libretro
             int gunCount = RawLightgun.GetUsableLightGunCount();
             var guns = RawLightgun.GetRawLightguns().OrderBy(g => g.Index).ToArray();
 
-            int maxIndex = guns.Length - 1;
-
-            for (int i = 0; i < guns.Length; i++)
-            {
-                guns[i].Index = maxIndex - i;
-            }
-
+            
+            // Re-indexing logic removed to fix P1/P2 swap issue reported by user.
+            
             guns = guns.OrderBy(g => g.Priority).ToArray();
 
             SimpleLogger.Instance.Info("[LightGun] Found " + gunCount + " usable guns.");
@@ -71,6 +67,17 @@ namespace EmulatorLauncher.Libretro
             // Set multigun to true in some cases
             // Case 1 = multiple guns are connected, playerindex is 1 and user did not force 'one gun only'
             if (gunCount > 1 && guns.Length > 1 && playerIndex == 1 && !useOneGun)
+            {
+                SimpleLogger.Instance.Info("[LightGun] Multigun enabled.");
+                multigun = true;
+            }
+
+            // Perform generic lightgun configuration
+            bool useMouseAsGun = SystemConfig.isOptSet("mame_gun_mouse") && SystemConfig.getOptBoolean("mame_gun_mouse");
+
+            // Set multigun to true in some cases
+            // Case 1 = multiple guns are connected, playerindex is 1 and user did not force 'one gun only'
+            if ((gunCount > 1 && guns.Length > 1 && playerIndex == 1 && !useOneGun) || (gunCount == 1 && useMouseAsGun && playerIndex == 1))
             {
                 SimpleLogger.Instance.Info("[LightGun] Multigun enabled.");
                 multigun = true;
@@ -132,8 +139,12 @@ namespace EmulatorLauncher.Libretro
                 // DirectInput does not differenciate mouse indexes. We have to use "Raw" with multiple guns
                 retroarchConfig["input_driver"] = "raw";
 
+                int numPlayers = guns.Length;
+                if (guns.Length == 1 && useMouseAsGun)
+                    numPlayers = 2;
+
                 // Set mouse buttons for multigun
-                for (int i = 1; i <= guns.Length; i++)
+                for (int i = 1; i <= numPlayers; i++)
                 {
                     // Get gamepad buttons to assign them so that controller buttons can be used along with gun
                     string a_padbutton = retroarchConfig["input_player" + i + "_a_btn"];
@@ -146,9 +157,16 @@ namespace EmulatorLauncher.Libretro
                     string left_padbutton = retroarchConfig["input_player" + i + "_left_btn"];
                     string right_padbutton = retroarchConfig["input_player" + i + "_right_btn"];
 
-                    int deviceIndex = guns[i - 1].Index; // i-1;
+                    int deviceIndex = 0;
+                    string name = "Mouse";
 
-                    SimpleLogger.Instance.Info("[LightGun] Assigned player " + i + " to -> " + (guns[i - 1].Name != null ? guns[i-1].Name.ToString() : "") + " index: " + guns[i-1].Index.ToString());
+                    if (i <= guns.Length)
+                    {
+                        deviceIndex = guns[i - 1].Index;
+                        name = guns[i - 1].Name;
+                    }
+
+                    SimpleLogger.Instance.Info("[LightGun] Assigned player " + i + " to -> " + name + " index: " + deviceIndex.ToString());
 
                     retroarchConfig["input_libretro_device_p" + i] = deviceType;
 
@@ -211,10 +229,14 @@ namespace EmulatorLauncher.Libretro
             }
             else
             {
+                int numPlayers = guns.Length;
+                if (guns.Length == 1 && useMouseAsGun)
+                    numPlayers = 2;
+
                 // Nullify all buttons after guns.length
-                if (guns.Length <= 16)
+                if (numPlayers <= 16)
                 {
-                    for (int i = guns.Length + 1; i == 16; i++)
+                    for (int i = numPlayers + 1; i == 16; i++)
                     {
                         foreach (string cfg in gunButtons)
                             retroarchConfig["input_player" + i + cfg] = "nul";
@@ -527,11 +549,24 @@ namespace EmulatorLauncher.Libretro
             else
             {
                 retroarchConfig["input_driver"] = "raw";
-                for (int i = 1; i <= guns.Length; i++)
-                {
-                    int deviceIndex = guns[i - 1].Index; // i-1;
+                bool useMouseAsGun = SystemConfig.isOptSet("mame_gun_mouse") && SystemConfig.getOptBoolean("mame_gun_mouse");
 
-                    SimpleLogger.Instance.Info("[LightGun core] Assigned player " + i + " to -> " + (guns[i-1].Name != null ? guns[i-1].Name.ToString() : "") + " index: " + guns[i-1].Index.ToString());
+                int numPlayers = guns.Length;
+                if (guns.Length == 1 && useMouseAsGun)
+                    numPlayers = 2;
+
+                for (int i = 1; i <= numPlayers; i++)
+                {
+                    int deviceIndex = 0;
+                    string name = "Mouse";
+
+                    if (i <= guns.Length)
+                    {
+                        deviceIndex = guns[i - 1].Index;
+                        name = guns[i - 1].Name;
+                    }
+
+                    SimpleLogger.Instance.Info("[LightGun core] Assigned player " + i + " to -> " + name + " index: " + deviceIndex.ToString());
 
                     retroarchConfig["input_libretro_device_p" + i] = deviceType;
 

@@ -2536,7 +2536,7 @@ namespace EmulatorLauncher.Libretro
             coreSettings["mame_mame_paths_enable"] = "disabled";
             coreSettings["mame_saves"] = "game";
 
-            if (SystemConfig.isOptSet("mame_lightgun_mode") && SystemConfig["mame_lightgun_mode"] != "none")
+            if (SystemConfig.isOptSet("lightgun_mode") && SystemConfig["lightgun_mode"] != "none")
                 coreSettings["mame_mouse_enable"] = "disabled";
             else
                 BindBoolFeatureOn(coreSettings, "mame_mouse_enable", "mame_mouse_enable", "enabled", "disabled");
@@ -2555,7 +2555,7 @@ namespace EmulatorLauncher.Libretro
             BindBoolFeature(coreSettings, "mame_boot_to_bios", "boot_to_bios", "enabled", "disabled");
             BindBoolFeature(coreSettings, "mame_boot_to_osd", "boot_to_osd", "enabled", "disabled");
 
-            SetupLightGuns(retroarchConfig, "1", core);
+            SetupLightGuns(retroarchConfig, "4", core);
 
             // System specifics
             if (system == "fmtowns")
@@ -2701,7 +2701,7 @@ namespace EmulatorLauncher.Libretro
             // Lightguns
             coreSettings["mame2003-plus_xy_device"] = HasMultipleGuns() ? "mouse" : "lightgun";
 
-            SetupLightGuns(retroarchConfig, "1", core);
+            SetupLightGuns(retroarchConfig, "4", core);
         }
 
         private void ConfigureMame2010(ConfigFile retroarchConfig, ConfigFile coreSettings, string system, string core)
@@ -2753,7 +2753,7 @@ namespace EmulatorLauncher.Libretro
             BindBoolFeature(coreSettings, "mame2016_read_config", "mame2016_read_config", "enabled", "disabled");
             BindBoolFeature(coreSettings, "mame2016_mouse_enable", "mame2016_mouse_enable", "disabled", "enabled");
 
-            SetupLightGuns(retroarchConfig, "1", core);
+            SetupLightGuns(retroarchConfig, "4", core);
         }
 
         private void ConfigureMednafenPce(ConfigFile retroarchConfig, ConfigFile coreSettings, string system, string core)

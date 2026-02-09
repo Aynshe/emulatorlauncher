@@ -4,6 +4,7 @@ using System.Linq;
 using System.IO;
 using System.Diagnostics;
 using EmulatorLauncher.Common;
+using EmulatorLauncher.Common.Lightguns;
 
 namespace EmulatorLauncher
 {
@@ -436,11 +437,13 @@ namespace EmulatorLauncher
                 retList.Add("-nogun");
             else if (SystemConfig.isOptSet("mame_lightgun") && !string.IsNullOrEmpty(SystemConfig["mame_lightgun"]))
             {
+                retList.Add("-lightgun");
                 retList.Add("-lightgun_device");
                 retList.Add(SystemConfig["mame_lightgun"]);
             }
             else if (SystemConfig.getOptBoolean("use_guns"))
             {
+                retList.Add("-lightgun");
                 retList.Add("-lightgun_device");
                 retList.Add("lightgun");
             }
@@ -449,6 +452,13 @@ namespace EmulatorLauncher
                 retList.Add("-lightgun_device");
                 retList.Add("mouse");
                 _mouseGun = true;
+            }
+
+            // Force mouseprovider to rawinput if lightgun is enabled or if we use mouse as lightgun
+            if (SystemConfig.getOptBoolean("use_guns") || _mouseGun)
+            {
+                 retList.Add("-mouseprovider");
+                 retList.Add("rawinput");
             }
 
             if (SystemConfig.isOptSet("mame_lightgun") && SystemConfig["mame_lightgun"] == "mouse")
