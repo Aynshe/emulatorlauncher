@@ -52,9 +52,10 @@ namespace EmulatorLauncher.Libretro
             var guns = RawLightgun.GetRawLightguns().OrderBy(g => g.Index).ToArray();
 
             
-            // Re-indexing logic removed to fix P1/P2 swap issue reported by user.
-            
             guns = guns.OrderBy(g => g.Priority).ToArray();
+
+            for (int i = 0; i < guns.Length; i++)
+                guns[i].Index = i;
 
             SimpleLogger.Instance.Info("[LightGun] Found " + gunCount + " usable guns.");
 

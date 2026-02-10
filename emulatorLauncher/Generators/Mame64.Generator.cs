@@ -447,11 +447,15 @@ namespace EmulatorLauncher
                 retList.Add("-lightgun_device");
                 retList.Add("lightgun");
             }
-            else
+            else if (SystemConfig.getOptBoolean("mame_gun_mouse"))
             {
                 retList.Add("-lightgun_device");
                 retList.Add("mouse");
                 _mouseGun = true;
+            }
+            else
+            {
+                retList.Add("-nogun");
             }
 
             // Force mouseprovider to rawinput if lightgun is enabled or if we use mouse as lightgun

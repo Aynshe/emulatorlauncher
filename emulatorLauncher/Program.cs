@@ -400,10 +400,14 @@ namespace EmulatorLauncher
             }
 
             // Automatically switch on lightgun if -lightgun is passed and not disabled in the config (except for wii where we do not want to switch on with real wiimote)
+            // Restricted to games known in gungames.xml to avoid breaking non-lightgun games (like bubble bobble) when guns are connected.
             if (!SystemConfig.isOptSet("use_guns") && args.Any(a => a == "-lightgun") && SystemConfig["system"] != "wii")
             {
-                SystemConfig["use_guns"] = "true";
-                SimpleLogger.Instance.Info("[GUNS] Lightgun game : setting default lightun value to true.");
+                if (GunGames.FindGunGame(SystemConfig["system"], SystemConfig["rom"]) != null)
+                {
+                    SystemConfig["use_guns"] = "true";
+                    SimpleLogger.Instance.Info("[GUNS] Lightgun game : setting default lightun value to true.");
+                }
             }
 
             /* for later wheels
