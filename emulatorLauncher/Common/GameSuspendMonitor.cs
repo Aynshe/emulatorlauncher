@@ -156,16 +156,40 @@ namespace EmulatorLauncher.Common
 
             // EN: If not found, try removing or adding .exe to handle slight name mismatches
             // FR: Si non trouvé, essayer avec ou sans l'extension .exe
+            string baseName = exeName;
             if (exeName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                baseName = Path.GetFileNameWithoutExtension(exeName);
+
+            string noExePath = Path.Combine(targetDir, $"{baseName}.key");
+            if (File.Exists(noExePath)) return noExePath;
+
+            string withExePath = Path.Combine(targetDir, $"{baseName}.exe.key");
+            if (File.Exists(withExePath)) return withExePath;
+
+            // EN: Fuzzy search: identify if any existing .key file matches a substring of the ROM name or vice versa
+            // FR: Recherche floue : identifier si un fichier .key existant correspond à une sous-chaîne du nom de la ROM ou inversement
+            try
             {
-                string noExePath = Path.Combine(targetDir, $"{Path.GetFileNameWithoutExtension(exeName)}.key");
-                if (File.Exists(noExePath)) return noExePath;
+                if (Directory.Exists(targetDir))
+                {
+                    var files = Directory.GetFiles(targetDir, "*.key");
+                    foreach (var file in files)
+                    {
+                        string fileName = Path.GetFileNameWithoutExtension(file);
+                        // Exclude extension if present in fileName for comparison
+                        if (fileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                            fileName = Path.GetFileNameWithoutExtension(fileName);
+
+                        if (fileName.IndexOf(baseName, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                            baseName.IndexOf(fileName, StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            SimpleLogger.Instance.Info($"[GameSuspendMonitor] Fuzzy match found: '{fileName}.key' for ROM '{exeName}'");
+                            return file;
+                        }
+                    }
+                }
             }
-            else
-            {
-                string withExePath = Path.Combine(targetDir, $"{exeName}.exe.key");
-                if (File.Exists(withExePath)) return withExePath;
-            }
+            catch { }
 
             return exactPath;
         }
@@ -314,10 +338,17 @@ namespace EmulatorLauncher.Common
         {
             while (!game.HasExited)
             {
+                // EN: Check for key file using BOTH the ROM name (exeName) and the actual Process Name
+                // FR: Chercher le fichier clé en utilisant à la fois le nom de la ROM (exeName) et le nom réel du processus
                 string keyPath = GetSuspendKeyPath(exeName);
+                if (string.IsNullOrEmpty(keyPath) || !File.Exists(keyPath))
+                {
+                    keyPath = GetSuspendKeyPath(game.ProcessName);
+                }
+
                 if (!string.IsNullOrEmpty(keyPath) && File.Exists(keyPath))
                 {
-                    SimpleLogger.Instance.Info($"[GameSuspendMonitor] Key file detected for {exeName} at {keyPath}. Game was suspended. Treating as exit.");
+                    SimpleLogger.Instance.Info($"[GameSuspendMonitor] Key file detected for {exeName} (actual process: {game.ProcessName}) at {keyPath}. Game was suspended. Treating as exit.");
                     NotifyEmulationStationReload();
                     return true;
                 }
