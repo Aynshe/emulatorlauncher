@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -101,6 +101,26 @@ namespace EmulatorLauncher.Common
         public bool AddProcess(int processId)
         {
             return AddProcess(Process.GetProcessById(processId).Handle);
+        }
+
+        public void CancelKillOnJobClose()
+        {
+            var info = new JOBOBJECT_BASIC_LIMIT_INFORMATION
+            {
+                LimitFlags = 0 
+            };
+
+            var extendedInfo = new JOBOBJECT_EXTENDED_LIMIT_INFORMATION
+            {
+                BasicLimitInformation = info
+            };
+
+            int length = Marshal.SizeOf(typeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
+            IntPtr extendedInfoPtr = Marshal.AllocHGlobal(length);
+            Marshal.StructureToPtr(extendedInfo, extendedInfoPtr, false);
+
+            SetInformationJobObject(handle, JobObjectInfoType.ExtendedLimitInformation, extendedInfoPtr, (uint)length);
+            Marshal.FreeHGlobal(extendedInfoPtr);
         }
     }
 

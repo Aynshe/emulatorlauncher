@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Forms;
@@ -141,6 +141,7 @@ namespace EmulatorLauncher
             { "psxmame", () => new PSXMameGenerator() },
             { "raine", () => new RaineGenerator() },
             { "raze", () => new RazeGenerator() },
+            { "quickresume", () => new SuspendedNTimeGenerator() },
             { "redream", () => new RedreamGenerator() },
             { "retrobat", () => new RetrobatLauncherGenerator() },
             { "rpcs3", () => new Rpcs3Generator() },

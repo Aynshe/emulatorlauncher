@@ -1,4 +1,4 @@
-﻿using EmulatorLauncher.Common;
+using EmulatorLauncher.Common;
 using EmulatorLauncher.Common.EmulationStation;
 using EmulatorLauncher.Common.FileFormats;
 using EmulatorLauncher.PadToKeyboard;
@@ -13,6 +13,7 @@ using System.Security.Policy;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Xml.Linq;
+using Microsoft.Win32;
 
 namespace EmulatorLauncher
 {
@@ -341,6 +342,21 @@ namespace EmulatorLauncher
                 int waitttime = 30;
                 if (Program.SystemConfig.isOptSet("steam_wait") && !string.IsNullOrEmpty(Program.SystemConfig["steam_wait"]))
                     waitttime = Program.SystemConfig["steam_wait"].ToInteger();
+
+                var resumedGame = GameSuspendMonitor.CheckAndResumeSuspendedGame(_exename);
+                if (resumedGame != null)
+                {
+                    SimpleLogger.Instance.Info("Process : " + _exename + " found, waiting to exit (Resume)");
+                    Job.Current.AddProcess(resumedGame);
+                    if (GameSuspendMonitor.WaitForProcessOrSuspend(resumedGame, _exename))
+                    {
+                        Job.Current.CancelKillOnJobClose();
+                        return 0; // Skip KillLauncher
+                    }
+                    KillLauncher(launcherProcessStatusAfter, launcherProcessStatusBefore);
+                    return 0;
+                }
+
                 SimpleLogger.Instance.Info("[INFO] Starting process, waiting " + waitttime.ToString() + " seconds for the game to run before returning to Game List");
 
                 Process process = Process.Start(path);
@@ -369,7 +385,11 @@ namespace EmulatorLauncher
                     {
                         SimpleLogger.Instance.Info("[INFO] Game process '" + gameProcess.ProcessName + "' identified by window focus. Monitoring process.");
                         Job.Current.AddProcess(gameProcess);
-                        gameProcess.WaitForExit();
+                        if (GameSuspendMonitor.WaitForProcessOrSuspend(gameProcess, gameProcess.ProcessName))
+                        {
+                            Job.Current.CancelKillOnJobClose();
+                            return 0;
+                        }
                         SimpleLogger.Instance.Info("[INFO] Game process has exited.");
 
                         foreach (string processName in launcherPprocessNames)
@@ -398,12 +418,17 @@ namespace EmulatorLauncher
                     }
 
                     SimpleLogger.Instance.Info("Process : " + _exename + " found, waiting to exit");
-                    Process game = gamelist.OrderBy(p => p.StartTime).FirstOrDefault();
+                    Process game = Process.GetProcessesByName(_exename).OrderBy(p => p.StartTime).FirstOrDefault();
 
                     if (game != null)
+                    {
                         Job.Current.AddProcess(game);
-                    
-                    game.WaitForExit();
+                        if (GameSuspendMonitor.WaitForProcessOrSuspend(game, _exename))
+                        {
+                            Job.Current.CancelKillOnJobClose();
+                            return 0;
+                        }
+                    }
                 }
 
                 KillLauncher(launcherProcessStatusAfter, launcherProcessStatusBefore);
@@ -434,6 +459,19 @@ namespace EmulatorLauncher
                         int waitttime = 30;
                         if (Program.SystemConfig.isOptSet("steam_wait") && !string.IsNullOrEmpty(Program.SystemConfig["steam_wait"]))
                             waitttime = Program.SystemConfig["steam_wait"].ToInteger();
+
+                        var resumedGame = GameSuspendMonitor.CheckAndResumeSuspendedGame(_exename);
+                        if (resumedGame != null)
+                        {
+                            SimpleLogger.Instance.Info("Process : " + _exename + " found, waiting to exit");
+                            Job.Current.AddProcess(resumedGame);
+                            if (GameSuspendMonitor.WaitForProcessOrSuspend(resumedGame, _exename))
+                            {
+                                Job.Current.CancelKillOnJobClose();
+                            }
+                            return 0;
+                        }
+
                         SimpleLogger.Instance.Info("[INFO] Starting process, waiting " + waitttime.ToString() + " seconds for the game to run before returning to Game List");
 
                         Process process = Process.Start(path);
@@ -462,7 +500,10 @@ namespace EmulatorLauncher
                             {
                                 SimpleLogger.Instance.Info("[INFO] Game process '" + gameProcess.ProcessName + "' identified by window focus. Monitoring process.");
                                 Job.Current.AddProcess(gameProcess);
-                                gameProcess.WaitForExit();
+                                if (GameSuspendMonitor.WaitForProcessOrSuspend(gameProcess, gameProcess.ProcessName))
+                                {
+                                    Job.Current.CancelKillOnJobClose();
+                                }
                                 SimpleLogger.Instance.Info("[INFO] Game process has exited.");
                             }
                             else
@@ -476,11 +517,25 @@ namespace EmulatorLauncher
                             var jobToAdd = Process.GetProcessesByName(_exename).FirstOrDefault();
                             
                             if (jobToAdd != null)
-                                Job.Current.AddProcess(jobToAdd);
-
-                            while (Process.GetProcessesByName(_exename).Any())
                             {
-                                Thread.Sleep(1000);
+                                Job.Current.AddProcess(jobToAdd);
+                                if (GameSuspendMonitor.WaitForProcessOrSuspend(jobToAdd, _exename))
+                                {
+                                    Job.Current.CancelKillOnJobClose();
+                                }
+                            }
+                            else
+                            {
+                                while (Process.GetProcessesByName(_exename).Any())
+                                {
+                                    Thread.Sleep(1000);
+                                    string keyPath = null;
+                                    try {
+                                        var p = Registry.CurrentUser.OpenSubKey(@"Software\RetroBat")?.GetValue("LatestKnownInstallPath")?.ToString();
+                                        if (p != null) keyPath = Path.Combine(p, "user", "SuspendedNTime", $"{_exename}.key");
+                                    } catch {}
+                                    if (!string.IsNullOrEmpty(_exename) && keyPath != null && File.Exists(keyPath)) break;
+                                }
                             }
                         }
                         return 0;

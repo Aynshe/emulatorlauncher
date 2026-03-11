@@ -1,4 +1,4 @@
-﻿using EmulatorLauncher.Common;
+using EmulatorLauncher.Common;
 using EmulatorLauncher.Common.Launchers;
 using EmulatorLauncher.Common.Launchers.Epic;
 using Microsoft.Win32;
@@ -25,6 +25,19 @@ namespace EmulatorLauncher
             {
                 bool uiExists = Process.GetProcessesByName("GalaxyClient").Any();
                 SimpleLogger.Instance.Info("[INFO] Executable name : " + LauncherExe);
+
+                var resumedGame = GameSuspendMonitor.CheckAndResumeSuspendedGame(LauncherExe);
+                if (resumedGame != null)
+                {
+                    SimpleLogger.Instance.Info("Process : " + LauncherExe + " found, waiting to exit (Resume)");
+                    Job.Current.AddProcess(resumedGame);
+                    if (GameSuspendMonitor.WaitForProcessOrSuspend(resumedGame, LauncherExe))
+                    {
+                        Job.Current.CancelKillOnJobClose();
+                    }
+                    return 0;
+                }
+
                 KillExistingLauncherExes();
 
                 Process.Start(path);
@@ -34,7 +47,10 @@ namespace EmulatorLauncher
                 {
                     Job.Current.AddProcess(gogGame);
                     SimpleLogger.Instance.Info("[INFO] Process found running: " + LauncherExe + " ,waiting to exit");
-                    gogGame.WaitForExit();
+                    if (GameSuspendMonitor.WaitForProcessOrSuspend(gogGame, LauncherExe))
+                    {
+                        Job.Current.CancelKillOnJobClose();
+                    }
 
                     if ((!uiExists && Program.SystemConfig["killsteam"] != "0") || (Program.SystemConfig.isOptSet("killsteam") && Program.SystemConfig.getOptBoolean("killsteam")))
                     {

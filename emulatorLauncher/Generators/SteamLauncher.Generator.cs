@@ -1,4 +1,4 @@
-﻿using EmulatorLauncher.Common;
+using EmulatorLauncher.Common;
 using EmulatorLauncher.Common.EmulationStation;
 using EmulatorLauncher.Common.Launchers;
 using Microsoft.Win32;
@@ -66,6 +66,12 @@ namespace EmulatorLauncher
 
                 if (LauncherExe != null)
                 {
+                    Process steamGame = GameSuspendMonitor.CheckAndResumeSuspendedGame(LauncherExe);
+                    if (steamGame != null)
+                    {
+                        goto WaitAndExit;
+                    }
+
                     SimpleLogger.Instance.Info("[INFO] Executable name : " + LauncherExe);
 
                     // Kill game if already running
@@ -75,12 +81,16 @@ namespace EmulatorLauncher
                     Process.Start(path);
 
                     // Get running game process (30 seconds delay 30x1000)
-                    var steamGame = GetLauncherExeProcess();
+                    steamGame = GetLauncherExeProcess();
 
+                    WaitAndExit:
                     if (steamGame != null)
                     {
                         Job.Current.AddProcess(steamGame);
-                        steamGame.WaitForExit();
+                        if (GameSuspendMonitor.WaitForProcessOrSuspend(steamGame, LauncherExe))
+                        {
+                            Job.Current.CancelKillOnJobClose();
+                        }
                         SimpleLogger.Instance.Info("[INFO] Steam game closed : " + LauncherExe);
 
                         // Kill steam if it was not running previously or if option is set in RetroBat
@@ -102,7 +112,10 @@ namespace EmulatorLauncher
                     {
                         SimpleLogger.Instance.Info("[INFO] Game process '" + gameProcess.ProcessName + "' identified by window focus. Monitoring process.");
                         Job.Current.AddProcess(gameProcess);
-                        gameProcess.WaitForExit();
+                        if (GameSuspendMonitor.WaitForProcessOrSuspend(gameProcess, gameProcess.ProcessName))
+                        {
+                            Job.Current.CancelKillOnJobClose();
+                        }
                         SimpleLogger.Instance.Info("[INFO] Game process has exited.");
 
                         // Kill steam if it was not running previously or if option is set in RetroBat
@@ -184,9 +197,17 @@ namespace EmulatorLauncher
 
                 SimpleLogger.Instance.Info("[INFO] Game detected as running. Monitoring registry for exit.");
 
+                DateTime startTime = DateTime.Now;
+
                 // Wait for the game to exit
                 while (true)
                 {
+                    if (GameSuspendMonitor.WasAnyGameSuspendedSince(startTime))
+                    {
+                        SimpleLogger.Instance.Info("[GameSuspendMonitor] A new .key file was detected during Steam registry monitoring. Treating game as Suspended/Exited.");
+                        GameSuspendMonitor.NotifyEmulationStationReload();
+                        break;
+                    }
                     try
                     {
                         using (var key = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Valve\\Steam\\Apps\\" + _steamID))

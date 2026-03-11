@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Diagnostics;
 using EmulatorLauncher.Common.Launchers;
@@ -19,15 +19,26 @@ namespace EmulatorLauncher
             {
                 bool uiExists = Process.GetProcessesByName("EpicGamesLauncher").Any();
                 SimpleLogger.Instance.Info("[INFO] Executable name : " + LauncherExe);
+
+                Process epicGame = GameSuspendMonitor.CheckAndResumeSuspendedGame(LauncherExe);
+                if (epicGame != null)
+                {
+                    goto WaitAndExit;
+                }
+
                 KillExistingLauncherExes();
 
                 Process.Start(path);
 
-                var epicGame = GetLauncherExeProcess();
+                epicGame = GetLauncherExeProcess();
+                WaitAndExit:
                 if (epicGame != null)
                 {
                     Job.Current.AddProcess(epicGame);
-                    epicGame.WaitForExit();
+                    if (GameSuspendMonitor.WaitForProcessOrSuspend(epicGame, LauncherExe))
+                    {
+                        Job.Current.CancelKillOnJobClose();
+                    }
 
                     if ((!uiExists && Program.SystemConfig["killsteam"] != "0") || (Program.SystemConfig.isOptSet("killsteam") && Program.SystemConfig.getOptBoolean("killsteam")))
                     {
