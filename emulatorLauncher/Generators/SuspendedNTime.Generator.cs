@@ -42,15 +42,15 @@ namespace EmulatorLauncher
             {
                 SimpleLogger.Instance.Info($"[SuspendedNTime] Successfully resumed {exeName} (PID: {resumedGame.Id})");
                 
-                // Add to job object to monitor execution, but don't kill on close
+                // Add to job object to monitor execution
                 Job.Current.AddProcess(resumedGame);
                 
+                // EN: Always cancel kill on close for resumed games, as we want them to persist
+                // FR: Toujours annuler le kill à la fermeture pour les jeux repris, car on veut qu'ils persistent
+                Job.Current.CancelKillOnJobClose();
+
                 // Keep EmulatorLauncher alive until game exits or is suspended again
-                if (GameSuspendMonitor.WaitForProcessOrSuspend(resumedGame, exeName))
-                {
-                    // It was suspended again! Don't kill it.
-                    Job.Current.CancelKillOnJobClose();
-                }
+                GameSuspendMonitor.WaitForProcessOrSuspend(resumedGame, exeName);
 
                 return 0; // Return success to emulatorLauncher
             }

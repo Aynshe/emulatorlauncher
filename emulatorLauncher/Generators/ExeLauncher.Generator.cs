@@ -348,11 +348,8 @@ namespace EmulatorLauncher
                 {
                     SimpleLogger.Instance.Info("Process : " + _exename + " found, waiting to exit (Resume)");
                     Job.Current.AddProcess(resumedGame);
-                    if (GameSuspendMonitor.WaitForProcessOrSuspend(resumedGame, _exename))
-                    {
-                        Job.Current.CancelKillOnJobClose();
-                        return 0; // Skip KillLauncher
-                    }
+                    Job.Current.CancelKillOnJobClose();
+                    GameSuspendMonitor.WaitForProcessOrSuspend(resumedGame, _exename);
                     KillLauncher(launcherProcessStatusAfter, launcherProcessStatusBefore);
                     return 0;
                 }
@@ -463,12 +460,10 @@ namespace EmulatorLauncher
                         var resumedGame = GameSuspendMonitor.CheckAndResumeSuspendedGame(_exename);
                         if (resumedGame != null)
                         {
-                            SimpleLogger.Instance.Info("Process : " + _exename + " found, waiting to exit");
+                            SimpleLogger.Instance.Info("Process : " + _exename + " found, waiting to exit (Resume)");
                             Job.Current.AddProcess(resumedGame);
-                            if (GameSuspendMonitor.WaitForProcessOrSuspend(resumedGame, _exename))
-                            {
-                                Job.Current.CancelKillOnJobClose();
-                            }
+                            Job.Current.CancelKillOnJobClose();
+                            GameSuspendMonitor.WaitForProcessOrSuspend(resumedGame, _exename);
                             return 0;
                         }
 

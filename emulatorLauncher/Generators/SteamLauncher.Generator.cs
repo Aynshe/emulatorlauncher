@@ -87,10 +87,8 @@ namespace EmulatorLauncher
                     if (steamGame != null)
                     {
                         Job.Current.AddProcess(steamGame);
-                        if (GameSuspendMonitor.WaitForProcessOrSuspend(steamGame, LauncherExe))
-                        {
-                            Job.Current.CancelKillOnJobClose();
-                        }
+                        Job.Current.CancelKillOnJobClose();
+                        GameSuspendMonitor.WaitForProcessOrSuspend(steamGame, LauncherExe);
                         SimpleLogger.Instance.Info("[INFO] Steam game closed : " + LauncherExe);
 
                         // Kill steam if it was not running previously or if option is set in RetroBat

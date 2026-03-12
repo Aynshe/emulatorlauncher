@@ -35,7 +35,23 @@ namespace EmulatorLauncher.Common
         private static extern bool Process32Next(IntPtr hSnapshot, ref PROCESSENTRY32 lppe);
 
         [DllImport("user32.dll")]
-        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("kernel32.dll")]
+        private static extern uint GetCurrentThreadId();
+
+        [DllImport("user32.dll")]
+        private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+        [DllImport("user32.dll")]
+        private static extern bool BringWindowToTop(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
 
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -51,6 +67,12 @@ namespace EmulatorLauncher.Common
         private static extern bool IsWindowVisible(IntPtr hWnd);
 
         private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+        private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+        private static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_SHOWWINDOW = 0x0040;
 
         private const uint TH32CS_SNAPPROCESS  = 0x00000002;
         private const uint PROCESS_SUSPEND_RESUME = 0x0800;
@@ -93,11 +115,54 @@ namespace EmulatorLauncher.Common
             IntPtr hProc = OpenProcess(PROCESS_SUSPEND_RESUME, false, pid);
             if (hProc != IntPtr.Zero)
             {
-                NtResumeProcess(hProc);
+                uint result = NtResumeProcess(hProc);
+                SimpleLogger.Instance.Info($"[GameSuspendMonitor] NtResumeProcess for PID {pid} returned: {result}");
                 CloseHandle(hProc);
             }
+            else
+            {
+                SimpleLogger.Instance.Error($"[GameSuspendMonitor] Failed to open PID {pid} for resume. Error: {Marshal.GetLastWin32Error()}");
+            }
+
             foreach (int child in GetChildPids(pid))
                 ResumeProcessTree(child);
+        }
+
+        private static void ForceForegroundWindow(IntPtr hWnd)
+        {
+            if (hWnd == IntPtr.Zero) return;
+
+            IntPtr hForeground = GetForegroundWindow();
+            if (hForeground == hWnd) return;
+
+            uint currentThreadId = GetCurrentThreadId();
+            uint foregroundThreadId = GetWindowThreadProcessId(hForeground, out _);
+            uint targetThreadId = GetWindowThreadProcessId(hWnd, out _);
+
+            bool attachedForeground = false;
+            bool attachedTarget = false;
+
+            if (foregroundThreadId != 0 && currentThreadId != foregroundThreadId)
+            {
+                attachedForeground = AttachThreadInput(currentThreadId, foregroundThreadId, true);
+            }
+
+            if (targetThreadId != 0 && currentThreadId != targetThreadId && targetThreadId != foregroundThreadId)
+            {
+                attachedTarget = AttachThreadInput(currentThreadId, targetThreadId, true);
+            }
+
+            // EN: Force the window to become topmost briefly, then revert it, while bringing it to top
+            // FR: Forcer la fenêtre à devenir TopMost temporairement, la ramener, puis enlever TopMost
+            SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+            SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+
+            BringWindowToTop(hWnd);
+            ShowWindowAsync(hWnd, SW_RESTORE);
+            SetForegroundWindow(hWnd);
+
+            if (attachedForeground) AttachThreadInput(currentThreadId, foregroundThreadId, false);
+            if (attachedTarget) AttachThreadInput(currentThreadId, targetThreadId, false);
         }
 
         private static void RestoreProcessWindows(int rootPid)
@@ -116,8 +181,7 @@ namespace EmulatorLauncher.Common
                 GetWindowThreadProcessId(h, out uint wpid);
                 if (pids.Contains((int)wpid) && IsWindowVisible(h))
                 {
-                    ShowWindow(h, SW_RESTORE);
-                    SetForegroundWindow(h);
+                    ForceForegroundWindow(h);
                 }
                 return true;
             }, IntPtr.Zero);
@@ -308,7 +372,7 @@ namespace EmulatorLauncher.Common
 
                     // EN: Wait briefly for the process to wake up, then restore its windows.
                     // FR: Attendre brièvement que le processus se réveille, puis restaurer ses fenêtres.
-                    Thread.Sleep(300);
+                    Thread.Sleep(500);
                     RestoreProcessWindows(pid);
 
                     // EN: Delete the key file ourselves to signal a successful resume.
@@ -336,19 +400,47 @@ namespace EmulatorLauncher.Common
 
         public static bool WaitForProcessOrSuspend(Process game, string exeName)
         {
-            while (!game.HasExited)
+            if (game == null)
             {
+                SimpleLogger.Instance.Error("[GameSuspendMonitor] WaitForProcessOrSuspend: game process is null.");
+                return false;
+            }
+
+            string cachedProcessName = "Unknown";
+            int cachedPid = 0;
+            try
+            {
+                cachedProcessName = game.ProcessName;
+                cachedPid = game.Id;
+            }
+            catch { }
+
+            SimpleLogger.Instance.Info($"[GameSuspendMonitor] Monitoring process: {cachedProcessName} (PID: {cachedPid})");
+
+            while (true)
+            {
+                try
+                {
+                    game.Refresh();
+                    if (game.HasExited)
+                        break;
+                }
+                catch
+                {
+                    break;
+                }
+
                 // EN: Check for key file using BOTH the ROM name (exeName) and the actual Process Name
                 // FR: Chercher le fichier clé en utilisant à la fois le nom de la ROM (exeName) et le nom réel du processus
                 string keyPath = GetSuspendKeyPath(exeName);
                 if (string.IsNullOrEmpty(keyPath) || !File.Exists(keyPath))
                 {
-                    keyPath = GetSuspendKeyPath(game.ProcessName);
+                    keyPath = GetSuspendKeyPath(cachedProcessName);
                 }
 
                 if (!string.IsNullOrEmpty(keyPath) && File.Exists(keyPath))
                 {
-                    SimpleLogger.Instance.Info($"[GameSuspendMonitor] Key file detected for {exeName} (actual process: {game.ProcessName}) at {keyPath}. Game was suspended. Treating as exit.");
+                    SimpleLogger.Instance.Info($"[GameSuspendMonitor] Key file detected for {exeName} (actual process: {cachedProcessName}) at {keyPath}. Game was suspended. Treating as exit.");
                     NotifyEmulationStationReload();
                     return true;
                 }
@@ -356,8 +448,13 @@ namespace EmulatorLauncher.Common
                 game.WaitForExit(1000); // 1 second chunks for responsiveness
             }
 
+            SimpleLogger.Instance.Info($"[GameSuspendMonitor] Process {cachedProcessName} (PID: {cachedPid}) has exited.");
+
             if (_wasRestored)
+            {
+                SimpleLogger.Instance.Info("[GameSuspendMonitor] Process was a resumed game. Notifying ES reload.");
                 NotifyEmulationStationReload();
+            }
 
             return false;
         }

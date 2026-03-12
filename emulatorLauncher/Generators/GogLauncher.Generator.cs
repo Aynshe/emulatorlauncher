@@ -31,10 +31,8 @@ namespace EmulatorLauncher
                 {
                     SimpleLogger.Instance.Info("Process : " + LauncherExe + " found, waiting to exit (Resume)");
                     Job.Current.AddProcess(resumedGame);
-                    if (GameSuspendMonitor.WaitForProcessOrSuspend(resumedGame, LauncherExe))
-                    {
-                        Job.Current.CancelKillOnJobClose();
-                    }
+                    Job.Current.CancelKillOnJobClose();
+                    GameSuspendMonitor.WaitForProcessOrSuspend(resumedGame, LauncherExe);
                     return 0;
                 }
 

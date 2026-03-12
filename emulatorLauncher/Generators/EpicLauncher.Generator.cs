@@ -35,10 +35,8 @@ namespace EmulatorLauncher
                 if (epicGame != null)
                 {
                     Job.Current.AddProcess(epicGame);
-                    if (GameSuspendMonitor.WaitForProcessOrSuspend(epicGame, LauncherExe))
-                    {
-                        Job.Current.CancelKillOnJobClose();
-                    }
+                    Job.Current.CancelKillOnJobClose();
+                    GameSuspendMonitor.WaitForProcessOrSuspend(epicGame, LauncherExe);
 
                     if ((!uiExists && Program.SystemConfig["killsteam"] != "0") || (Program.SystemConfig.isOptSet("killsteam") && Program.SystemConfig.getOptBoolean("killsteam")))
                     {
