@@ -556,6 +556,7 @@
     <Compile Include="Generators\Sudachi.Controllers.cs">
       <DependentUpon>Sudachi.Generator.cs</DependentUpon>
     </Compile>
+    <Compile Include="Generators\SuspendedNTime.Generator.cs" />
     <Compile Include="Generators\Suyu.Generator.cs" />
     <Compile Include="Generators\Suyu.Controllers.cs">
       <DependentUpon>Suyu.Generator.cs</DependentUpon>
