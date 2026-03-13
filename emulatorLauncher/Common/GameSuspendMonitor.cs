@@ -209,6 +209,8 @@ namespace EmulatorLauncher.Common
 
         private static string GetSuspendKeyPath(string exeName)
         {
+            if (string.IsNullOrEmpty(exeName)) return null;
+
             string retroBatPath = GetRetroBatInstallPath();
             if (string.IsNullOrEmpty(retroBatPath)) return null;
 
@@ -284,6 +286,8 @@ namespace EmulatorLauncher.Common
 
         public static Process CheckAndResumeSuspendedGame(string exeName)
         {
+            if (string.IsNullOrEmpty(exeName)) return null;
+
             string keyPath = GetSuspendKeyPath(exeName);
             if (string.IsNullOrEmpty(keyPath) || !File.Exists(keyPath))
                 return null;

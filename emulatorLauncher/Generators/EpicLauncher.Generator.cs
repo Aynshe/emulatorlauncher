@@ -20,7 +20,12 @@ namespace EmulatorLauncher
                 bool uiExists = Process.GetProcessesByName("EpicGamesLauncher").Any();
                 SimpleLogger.Instance.Info("[INFO] Executable name : " + LauncherExe);
 
-                Process epicGame = GameSuspendMonitor.CheckAndResumeSuspendedGame(LauncherExe);
+                Process epicGame = null;
+                if (!string.IsNullOrEmpty(LauncherExe))
+                {
+                    epicGame = GameSuspendMonitor.CheckAndResumeSuspendedGame(LauncherExe);
+                }
+
                 if (epicGame != null)
                 {
                     goto WaitAndExit;

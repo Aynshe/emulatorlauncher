@@ -26,7 +26,12 @@ namespace EmulatorLauncher
                 bool uiExists = Process.GetProcessesByName("GalaxyClient").Any();
                 SimpleLogger.Instance.Info("[INFO] Executable name : " + LauncherExe);
 
-                var resumedGame = GameSuspendMonitor.CheckAndResumeSuspendedGame(LauncherExe);
+                Process resumedGame = null;
+                if (!string.IsNullOrEmpty(LauncherExe))
+                {
+                    resumedGame = GameSuspendMonitor.CheckAndResumeSuspendedGame(LauncherExe);
+                }
+                
                 if (resumedGame != null)
                 {
                     SimpleLogger.Instance.Info("Process : " + LauncherExe + " found, waiting to exit (Resume)");

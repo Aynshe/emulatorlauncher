@@ -19,7 +19,12 @@ namespace EmulatorLauncher
             {
                 try
                 {
-                    var resumedGame = GameSuspendMonitor.CheckAndResumeSuspendedGame(LauncherExe);
+                    Process resumedGame = null;
+                    if (!string.IsNullOrEmpty(LauncherExe))
+                    {
+                        resumedGame = GameSuspendMonitor.CheckAndResumeSuspendedGame(LauncherExe);
+                    }
+
                     if (resumedGame != null)
                     {
                         SimpleLogger.Instance.Info("Process : " + LauncherExe + " found, waiting to exit (Resume)");
@@ -55,7 +60,12 @@ namespace EmulatorLauncher
                 bool uiExists = Process.GetProcessesByName("Amazon Games UI").Any();
                 SimpleLogger.Instance.Info("[INFO] Executable name : " + LauncherExe);
 
-                var resumedGame = GameSuspendMonitor.CheckAndResumeSuspendedGame(LauncherExe);
+                Process resumedGame = null;
+                if (!string.IsNullOrEmpty(LauncherExe))
+                {
+                    resumedGame = GameSuspendMonitor.CheckAndResumeSuspendedGame(LauncherExe);
+                }
+
                 if (resumedGame != null)
                 {
                     SimpleLogger.Instance.Info("Process : " + LauncherExe + " found, waiting to exit (Resume)");

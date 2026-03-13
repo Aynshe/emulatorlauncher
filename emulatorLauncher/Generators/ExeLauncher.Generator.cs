@@ -343,7 +343,12 @@ namespace EmulatorLauncher
                 if (Program.SystemConfig.isOptSet("steam_wait") && !string.IsNullOrEmpty(Program.SystemConfig["steam_wait"]))
                     waitttime = Program.SystemConfig["steam_wait"].ToInteger();
 
-                var resumedGame = GameSuspendMonitor.CheckAndResumeSuspendedGame(_exename);
+                Process resumedGame = null;
+                if (!string.IsNullOrEmpty(_exename))
+                {
+                    resumedGame = GameSuspendMonitor.CheckAndResumeSuspendedGame(_exename);
+                }
+
                 if (resumedGame != null)
                 {
                     SimpleLogger.Instance.Info("Process : " + _exename + " found, waiting to exit (Resume)");
@@ -457,7 +462,12 @@ namespace EmulatorLauncher
                         if (Program.SystemConfig.isOptSet("steam_wait") && !string.IsNullOrEmpty(Program.SystemConfig["steam_wait"]))
                             waitttime = Program.SystemConfig["steam_wait"].ToInteger();
 
-                        var resumedGame = GameSuspendMonitor.CheckAndResumeSuspendedGame(_exename);
+                        Process resumedGame = null;
+                        if (!string.IsNullOrEmpty(_exename))
+                        {
+                            resumedGame = GameSuspendMonitor.CheckAndResumeSuspendedGame(_exename);
+                        }
+
                         if (resumedGame != null)
                         {
                             SimpleLogger.Instance.Info("Process : " + _exename + " found, waiting to exit (Resume)");
