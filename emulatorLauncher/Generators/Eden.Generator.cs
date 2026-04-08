@@ -116,8 +116,8 @@ namespace EmulatorLauncher
                 ini.WriteValue("UI", "hideInactiveMouse\\default", "true");
                 ini.WriteValue("UI", "hideInactiveMouse", "true");
 
-                ini.WriteValue("UI", "pauseWhenInBackground\\default", "false");
-                ini.WriteValue("UI", "pauseWhenInBackground", "true");
+                ini.WriteValue("UI", "pauseWhenInBackground\\default", SystemConfig.getOptBoolean("nopauseonlostfocus") ? "true" : "false");
+                ini.WriteValue("UI", "pauseWhenInBackground", SystemConfig.getOptBoolean("nopauseonlostfocus") ? "false" : "true");
 
                 if (SystemConfig.isOptSet("eden_controller_applet") && !SystemConfig.getOptBoolean("eden_controller_applet"))
                 {
@@ -306,6 +306,11 @@ namespace EmulatorLauncher
 
             using (var ini = new IniFile(_gamedirsIniPath))
                 ini.WriteValue("UI", "Paths\\gamedirs\\size", _gamedirsSize);
+
+            var cliProcesses = Process.GetProcessesByName("eden-cli");
+            foreach (var p in cliProcesses)
+                try { p.Kill(); }
+                catch { }
         }
     }
 }

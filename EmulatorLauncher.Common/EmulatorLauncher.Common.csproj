@@ -113,7 +113,7 @@
     <Compile Include="Imapi\Imapi2Interop.cs" />
     <Compile Include="InputKeyMapping.cs" />
     <Compile Include="Job.cs" />
-    <Compile Include="KeyboardInterceptor.cs" />
+    <Compile Include="Joysticks\DeviceHelper.cs" />
     <Compile Include="Joysticks\DirectInputInfo.cs" />
     <Compile Include="Joysticks\HidGameDevice.cs" />
     <Compile Include="Joysticks\HidToDirectInput.cs" />
